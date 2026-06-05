@@ -1,0 +1,9 @@
+# Local ML stack for transcription + diarization + voiceprints (Apple Silicon).
+# Installed separately (heavy) when the stages are built. Requires Python 3.12
+# (no 3.14 wheels for torch/pyannote yet).
+#
+# Transcription uses MLX (Apple GPU) — faster-whisper is CPU-only on Mac.
+mlx-whisper>=0.4         # Whisper on Apple MLX (GPU-accelerated on M-series)
+pyannote.audio>=3.1      # diarization + speaker embeddings (needs HF token)
+torch>=2.2               # pyannote backend (uses MPS on Apple Silicon)
+silero-vad>=5.0          # voice-activity detection (de-hallucinate noisy audio)

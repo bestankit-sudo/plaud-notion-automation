@@ -1,0 +1,6 @@
+# Worker runtime deps (current slice: Riffado read + Notion writer).
+# The heavy local-ML stack (Whisper + diarization) is in requirements-ml.txt,
+# installed separately when the transcription stage is built.
+httpx>=0.28
+python-dotenv>=1.0
+openai>=1.0   # used by the OpenAI structuring stage

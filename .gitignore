@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local secrets & runtime state (NEVER commit)
+.env
+**/.env
+state/
+storage/
+audit/
+*.db
+*.sqlite
+*.mp3
+*.wav
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

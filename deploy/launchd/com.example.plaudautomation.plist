@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Headless Plaud -> Notion automation.
+  Runs sync_and_reconcile every 30 min and at load (login). On a sleeping Mac,
+  launchd defers the interval and fires it on wake, so this also catches up on
+  anything synced while away.
+
+  Install:
+    cp deploy/launchd/com.example.plaudautomation.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.example.plaudautomation.plist
+  Tail logs:
+    tail -f worker/state/automation.log
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.plaudautomation</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/youruser/Projects/plaudautomation/worker/.venv/bin/python</string>
+        <string>scripts/sync_and_reconcile.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/youruser/Projects/plaudautomation/worker</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONPATH</key>
+        <string>src</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StartInterval</key>
+    <integer>1800</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/youruser/Projects/plaudautomation/worker/state/automation.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/youruser/Projects/plaudautomation/worker/state/automation.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

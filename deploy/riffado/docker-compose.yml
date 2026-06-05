@@ -1,0 +1,67 @@
+# Hardened, local-only Riffado deployment for plaudautomation.
+# Based on upstream openplaud/openplaud v0.5.4 docker-compose.yml, with the
+# security-gate changes documented in deploy/riffado/README.md:
+#   - image pinned (no :latest)            [SEC-01]
+#   - all ports bound to 127.0.0.1 only    [localhost isolation]
+#   - Postgres NOT published to the host    (app reaches it over the internal net)
+#   - runtime GitHub update-check disabled  [OBJ-03: no GitHub egress]
+#   - local storage only; S3/SMTP/webhooks-public/analytics/proxy all unset
+#
+# Net runtime egress after this config: api*.plaud.ai + resource.plaud.ai only.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: riffado-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: riffado
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    # No `ports:` — Postgres is reachable only from the app container on the
+    # internal compose network, never from the host or LAN.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    image: ghcr.io/riffado/riffado:${RIFFADO_VERSION:?pin a version in .env}
+    container_name: riffado-app
+    restart: unless-stopped
+    ports:
+      # Bind to loopback only. NOT "3000:3000" (which would listen on 0.0.0.0).
+      - "127.0.0.1:3000:3000"
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/riffado
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?set in .env}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:?set in .env}
+      APP_URL: ${APP_URL:-http://127.0.0.1:3000}
+      # Stop the footer "update available" check that hits api.github.com.
+      DISABLE_UPDATE_CHECK: "true"
+      # Allow localhost/Docker-network webhook targets (our local worker).
+      WEBHOOKS_REQUIRE_PUBLIC_TARGETS: "false"
+      # Lock down after the first user is created (flip to true, then recreate).
+      DISABLE_REGISTRATION: ${DISABLE_REGISTRATION:-false}
+      # Local filesystem storage; S3 intentionally unset.
+      DEFAULT_STORAGE_TYPE: local
+    volumes:
+      - audio:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 3s
+      start_period: 30s
+      retries: 3
+
+volumes:
+  pgdata:
+    driver: local
+  audio:
+    driver: local
