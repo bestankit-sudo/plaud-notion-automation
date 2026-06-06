@@ -31,6 +31,12 @@
     <dict>
         <key>PYTHONPATH</key>
         <string>src</string>
+        <!-- launchd's default PATH omits Homebrew, so ffmpeg (used by
+             transcription) isn't found. Prepend the Homebrew bin dirs.
+             On Apple Silicon Homebrew lives in /opt/homebrew; on Intel
+             Macs use /usr/local/bin:/usr/local/sbin instead. -->
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/opt/homebrew/sbin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
 
     <key>RunAtLoad</key>
