@@ -23,3 +23,8 @@ def notes_db() -> Path:
 
 def audio_dir() -> Path:
     return state_dir() / "audio"
+
+
+def worker_env() -> Path:
+    # secrets file the worker loads; overridable for tests via WORKER_ENV_FILE.
+    return Path(os.getenv("WORKER_ENV_FILE", _repo_root() / "worker" / ".env"))
