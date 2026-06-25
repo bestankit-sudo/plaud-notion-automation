@@ -10,7 +10,13 @@ form.destination.forEach((r) =>
 );
 
 async function loadModels() {
-  const { models } = await (await fetch("/api/setup/models")).json();
+  let models;
+  try {
+    ({ models } = await (await fetch("/api/setup/models")).json());
+  } catch (e) {
+    document.getElementById("error").textContent = "Could not load models. Reload to retry.";
+    return;
+  }
   modelsEl.innerHTML = "";
   for (const m of models) {
     const row = document.createElement("label");

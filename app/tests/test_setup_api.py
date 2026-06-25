@@ -48,3 +48,19 @@ def test_secrets_written_to_env_file(client, tmp_path):
 def test_secrets_rejects_unknown_key(client):
     r = client.post("/api/setup/secrets", json={"values": {"EVIL_KEY": "x"}})
     assert r.status_code == 400
+
+
+def test_secrets_mixed_batch_rejects_atomically(client, tmp_path):
+    r = client.post("/api/setup/secrets", json={"values": {
+        "ANTHROPIC_API_KEY": "ok", "EVIL_KEY": "x",
+    }})
+    assert r.status_code == 400
+    env = tmp_path / ".env"
+    assert (not env.exists()) or "ANTHROPIC_API_KEY" not in env.read_text()
+
+
+def test_secrets_rejects_newline_value(client, tmp_path):
+    r = client.post("/api/setup/secrets", json={"values": {"ANTHROPIC_API_KEY": "ab\ncd"}})
+    assert r.status_code == 400
+    env = tmp_path / ".env"
+    assert (not env.exists()) or "ANTHROPIC_API_KEY" not in env.read_text()

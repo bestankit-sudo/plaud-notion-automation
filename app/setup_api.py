@@ -66,5 +66,7 @@ def write_secrets(body: SecretsIn) -> dict:
     bad = sorted(set(body.values) - _ALLOWED_SECRETS)
     if bad:
         raise HTTPException(status_code=400, detail=f"unknown secret keys: {bad}")
+    if any(("\n" in v) or ("\r" in v) for v in body.values.values()):
+        raise HTTPException(status_code=400, detail="secret values must not contain newlines")
     envfile.upsert(paths.worker_env(), body.values)
     return {"ok": True, "written": sorted(body.values)}

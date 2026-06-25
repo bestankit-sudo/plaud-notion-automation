@@ -41,3 +41,13 @@ def test_upsert_appends_new_keys(tmp_path):
     envfile.upsert(f, {"B": "2"})
     text = f.read_text()
     assert "A=1" in text and "B=2" in text
+
+
+def test_upsert_no_prefix_collision(tmp_path):
+    f = tmp_path / ".env"
+    f.write_text("OPENAI_API_KEY_PERSONAL=keep\n")
+    envfile.upsert(f, {"OPENAI_API_KEY": "new"})
+    text = f.read_text()
+    assert "OPENAI_API_KEY_PERSONAL=keep" in text
+    assert "OPENAI_API_KEY=new" in text
+    assert text.count("OPENAI_API_KEY_PERSONAL=") == 1
