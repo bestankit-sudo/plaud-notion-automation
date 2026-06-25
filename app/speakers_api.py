@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
 from app.paths import audio_dir, notes_db, state_dir
-from plaud_worker.naming import reconstruct_labelmap
+from plaud_worker.naming import load_diar, load_or_reconstruct, load_labelmap, write_labelmap
 from plaud_worker.notes_store import NotesStore
 from plaud_worker.voiceprints import VoiceprintStore
 
@@ -42,6 +42,114 @@ def _naming_enabled() -> bool:
     return True
 
 
+def _destination() -> str:
+    cfg = state_dir() / "config.json"
+    if cfg.exists():
+        try:
+            return str(json.loads(cfg.read_text()).get("destination", "local"))
+        except (ValueError, OSError):
+            return "local"
+    return "local"
+
+
+def _enqueue_notion(rid: str) -> None:
+    q = state_dir() / "relabel_queue"
+    q.mkdir(parents=True, exist_ok=True)
+    (q / f"{rid}.json").write_text(json.dumps({"recording_id": rid}, ensure_ascii=False))
+
+
+def _backfill(name: str, state: "Path", *, enqueue_notion: bool) -> dict:
+    """Relabel every past meeting where the named voice now clears 0.75.
+
+    Synchronous and test-friendly: does NOT call state_dir() internally —
+    takes `state` as a parameter. Threading wrapper in name_speaker calls it
+    with state_dir().
+    """
+    from pathlib import Path as _Path
+    state = _Path(state)
+    relabeled: list[str] = []
+    collisions: list[str] = []
+
+    diar_dir = state / "diar_full"
+    if not diar_dir.exists():
+        return {"relabeled": relabeled, "collisions": collisions}
+
+    with _NAMING_LOCK:
+        store = VoiceprintStore(state / "voiceprints.db")
+        try:
+            for diar_path in sorted(diar_dir.glob("*.json")):
+                rid = diar_path.stem
+                # Best-effort per meeting: one bad meeting (corrupt diar, etc.) must
+                # not silently abort the whole background sweep (a known failure mode).
+                try:
+                    diar = load_diar(diar_path)
+                    embeddings = diar.embeddings  # {label: [floats]}
+                    if not embeddings:
+                        continue
+
+                    # The STORED labelmap is the authoritative current-display record
+                    # (pipeline writes one per meeting; lazily persisted on first view).
+                    stored_lm = load_labelmap(rid, state) or {}
+                    lm = dict(stored_lm)  # working copy (may be updated per label)
+
+                    changed = False  # any label needed local relabeling
+                    matched = False  # any label cleared 0.75 for name
+
+                    for label, emb in embeddings.items():
+                        nm, score = store.match(emb, threshold=0.0)
+                        if nm != name or score < 0.75:
+                            continue
+                        # This label matches 'name' at >= 0.75.
+                        matched = True
+                        # The persisted labelmap is the authoritative record of the
+                        # string currently shown for this label. If it's absent, SKIP
+                        # rather than guess the old display (a wrong guess would relabel
+                        # the wrong speaker). In production the pipeline writes a labelmap
+                        # for every meeting; legacy meetings get one when first viewed.
+                        stored_entry = stored_lm.get(label)
+                        if stored_entry is None:
+                            continue
+                        old_display = stored_entry.get("display", label)
+                        if old_display == name:
+                            continue  # already correct in stored state
+
+                        _apply_relabel(rid, old_display, name)
+                        base_entry = dict(stored_entry)
+                        base_entry["display"] = name
+                        base_entry["name"] = name
+                        base_entry["enrolled"] = True
+                        lm[label] = base_entry
+                        changed = True
+
+                    if changed:
+                        write_labelmap(rid, state, lm)
+                        relabeled.append(rid)
+                    if matched and enqueue_notion:
+                        _enqueue_notion(rid)
+
+                    # Collision check: if ≥2 labels in this meeting now map to 'name'
+                    all_name_labels = [
+                        lbl for lbl, entry in lm.items()
+                        if entry.get("name") == name or entry.get("display") == name
+                    ]
+                    if len(all_name_labels) >= 2:
+                        collisions.append(rid)
+                        _append_collision_log(rid, name, state)
+                except Exception:
+                    continue
+
+        finally:
+            store.close()
+
+    return {"relabeled": relabeled, "collisions": collisions}
+
+
+def _append_collision_log(rid: str, name: str, state: "Path") -> None:
+    line = json.dumps({"action": "collision", "rid": rid, "name": name})
+    with (state / "speaker_log.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(line + "\n")
+
+
 def _require_enabled() -> None:
     if not _naming_enabled():
         raise HTTPException(status_code=404, detail="speaker naming disabled")
@@ -62,10 +170,13 @@ def meeting_speakers(rid: str) -> dict:
     _require_enabled()
     store = _vp_store()
     try:
-        lm = reconstruct_labelmap(rid, store, state_dir(), threshold=0.75)
+        lm = load_or_reconstruct(rid, store, state_dir(), threshold=0.75)
     finally:
         store.close()
-    speakers = [] if lm is None else [{"label": k, **v} for k, v in sorted(lm.items())]
+    speakers = [] if lm is None else [
+        {"label": k, **{x: v[x] for x in v if x != "label"}}
+        for k, v in sorted(lm.items())
+    ]
     return {"recording_id": rid, "threshold": 0.75, "speakers": speakers}
 
 
@@ -125,17 +236,26 @@ def speaker_snippet(rid: str, label: str) -> FileResponse:
 
 class _NameBody(BaseModel):
     name: str
+    scope: str = "all"
 
 
-def _append_log(rid: str, label: str, name: str, score: float, action: str) -> None:
+class _RenameBody(BaseModel):
+    old: str
+    new: str
+
+
+def _append_log(rid: str, label: str, name: str, score: float, *, old_display: str,
+                proto_id: "int | None", scope: str, action: str) -> None:
     line = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "rid": rid,
-                       "label": label, "name": name, "score": round(float(score), 4), "action": action})
+                       "label": label, "name": name, "score": round(float(score), 4),
+                       "old_display": old_display, "proto_id": proto_id,
+                       "scope": scope, "action": action})
     with (state_dir() / "speaker_log.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(line + "\n")
 
 
-def _relabel_local(rid: str, label: str, old: str, name: str) -> None:
-    """Replace this meeting's display name for `label` with `name` in notes.db +
+def _apply_relabel(rid: str, old: str, name: str) -> None:
+    """Replace this meeting's display name `old` with `name` in notes.db +
     meetings/{rid}.json. Local-only — no Notion. (Notion re-publish is Phase 2.)"""
     if old == name:
         return
@@ -167,6 +287,7 @@ def _relabel_local(rid: str, label: str, old: str, name: str) -> None:
 def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
     _require_enabled()
     name = body.name.strip()
+    scope = body.scope
     if not name or not _LABEL_RE.match(label):
         raise HTTPException(status_code=400, detail="bad input")
     diar_path = state_dir() / "diar_full" / f"{rid}.json"
@@ -176,19 +297,129 @@ def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
     if emb is None:
         raise HTTPException(status_code=404, detail="label not in meeting")
     score = 0.0
+    proto_id: "int | None" = None
     with _NAMING_LOCK:
         store = _vp_store()
         try:
-            # Capture the old display name BEFORE enrolling (so reconstruct_labelmap
+            # Capture the old display name BEFORE enrolling (so load_or_reconstruct
             # sees the pre-enroll state and returns the current Guest N / display name)
-            lm = reconstruct_labelmap(rid, store, state_dir())
-            old_display = lm[label]["display"] if (lm and label in lm) else label
+            lm_before = load_or_reconstruct(rid, store, state_dir())
+            old_display = lm_before[label]["display"] if (lm_before and label in lm_before) else label
             cur, score = store.match(emb, threshold=0.0)
             already = cur == name and score >= 0.75
             if not already:
-                store.enroll(name, emb)
+                proto_id = store.enroll(name, emb)
         finally:
             store.close()
-        _relabel_local(rid, label, old_display, name)
-        _append_log(rid, label, name, score, "skip" if already else "enroll")
+        _apply_relabel(rid, old_display, name)
+        # Update the persisted labelmap with the newly enrolled entry. Reuse the
+        # pre-enroll map captured while the store was open (never touch the now-closed
+        # store); load_or_reconstruct already persisted it on the call above.
+        lm = dict(lm_before) if lm_before else {}
+        lm[label] = {
+            "label": label,
+            "display": name,
+            "name": name,
+            "score": round(float(score), 4),
+            "enrolled": True,
+            "total_speech_sec": lm.get(label, {}).get("total_speech_sec", 0.0),
+        }
+        write_labelmap(rid, state_dir(), lm)
+        _append_log(rid, label, name, score, old_display=old_display,
+                    proto_id=proto_id, scope=scope, action="skip" if already else "enroll")
+    if scope == "all":
+        threading.Thread(
+            target=lambda: _backfill(name, state_dir(), enqueue_notion=_destination() == "notion"),
+            daemon=True,
+        ).start()
     return {"ok": True, "enrolled": not already, "name": name}
+
+
+@router.post("/speakers/undo")
+def undo_speaker() -> dict:
+    _require_enabled()
+    log_path = state_dir() / "speaker_log.jsonl"
+    if not log_path.exists():
+        raise HTTPException(status_code=404, detail="no enrollment log found")
+
+    # Find the last line with action=="enroll"
+    entry = None
+    for line in reversed(log_path.read_text(encoding="utf-8").splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+        except ValueError:
+            continue
+        if parsed.get("action") == "enroll":
+            entry = parsed
+            break
+
+    if entry is None:
+        raise HTTPException(status_code=404, detail="no enroll entry to undo")
+
+    rid = entry["rid"]
+    label = entry["label"]
+    name = entry["name"]
+    old_display = entry["old_display"]
+    proto_id = entry.get("proto_id")
+    score = entry.get("score", 0.0)
+
+    with _NAMING_LOCK:
+        store = _vp_store()
+        try:
+            if proto_id is not None:
+                store.delete_prototype(proto_id)
+        finally:
+            store.close()
+
+        # Revert the current meeting's relabel (swap name → old_display)
+        _apply_relabel(rid, name, old_display)
+
+        # Update the labelmap entry back to unenrolled state
+        lm = load_labelmap(rid, state_dir()) or {}
+        if label in lm:
+            base = dict(lm[label])
+            base["display"] = old_display
+            base["name"] = None
+            base["enrolled"] = False
+            lm[label] = base
+        else:
+            lm[label] = {
+                "label": label,
+                "display": old_display,
+                "name": None,
+                "score": round(float(score), 4),
+                "enrolled": False,
+                "total_speech_sec": 0.0,
+            }
+        write_labelmap(rid, state_dir(), lm)
+
+        _append_log(rid, label, old_display, score, old_display=name,
+                    proto_id=proto_id, scope=entry.get("scope", "this"), action="undo")
+
+    return {"ok": True, "reverted": rid}
+
+
+@router.post("/speakers/rename")
+def rename_speaker(body: _RenameBody) -> dict:
+    _require_enabled()
+    old = body.old.strip()
+    new = body.new.strip()
+    if not old or not new:
+        raise HTTPException(status_code=400, detail="old and new must not be blank")
+
+    with _NAMING_LOCK:
+        store = _vp_store()
+        try:
+            store.rename(old, new)
+        finally:
+            store.close()
+
+    threading.Thread(
+        target=lambda: _backfill(new, state_dir(), enqueue_notion=_destination() == "notion"),
+        daemon=True,
+    ).start()
+
+    return {"ok": True}

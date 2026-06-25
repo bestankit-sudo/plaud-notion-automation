@@ -39,6 +39,48 @@ def load_diar(path: Path) -> DiarizationResult:
     )
 
 
+def _assemble(diar, id_map, display, store) -> dict:
+    out: dict[str, dict] = {}
+    for label, emb in diar.embeddings.items():
+        name, score = store.match(emb, threshold=0.0)
+        total = sum(t.end - t.start for t in diar.turns if t.speaker == label)
+        out[label] = {
+            "display": display.get(label, label),
+            "name": id_map.get(label),
+            "score": round(float(score), 4),
+            "enrolled": id_map.get(label) is not None,
+            "total_speech_sec": round(float(total), 1),
+        }
+    return out
+
+
+def build_labelmap(diar, id_map, display, store) -> dict:
+    return _assemble(diar, id_map, display, store)
+
+
+def write_labelmap(rid: str, state_dir, labelmap: dict) -> None:
+    d = Path(state_dir) / "labelmap"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{rid}.json").write_text(json.dumps({"version": 1, "labels": labelmap}, ensure_ascii=False))
+
+
+def load_labelmap(rid: str, state_dir):
+    p = Path(state_dir) / "labelmap" / f"{rid}.json"
+    if not p.exists():
+        return None
+    return json.loads(p.read_text()).get("labels")
+
+
+def load_or_reconstruct(rid: str, store, state_dir, *, threshold: float = 0.75):
+    lm = load_labelmap(rid, state_dir)
+    if lm is not None:
+        return lm
+    r = reconstruct_labelmap(rid, store, state_dir, threshold=threshold)
+    if r is not None:
+        write_labelmap(rid, state_dir, r)
+    return r
+
+
 def reconstruct_labelmap(rid: str, store: VoiceprintStore, state_dir, *, threshold: float = 0.75):
     """Faithfully recompute {SPEAKER_XX -> {display,name,score,enrolled,total_speech_sec}}
     by replaying label_segments + display_names over the cached whisper transcript and
@@ -54,15 +96,4 @@ def reconstruct_labelmap(rid: str, store: VoiceprintStore, state_dir, *, thresho
     seg_turns = label_segments(tr.segments, diar.turns)
     id_map = identify_speakers(diar, store, threshold=threshold)
     display = display_names(seg_turns, id_map)
-    out: dict[str, dict] = {}
-    for label, emb in diar.embeddings.items():
-        name, score = store.match(emb, threshold=0.0)
-        total = sum(t.end - t.start for t in diar.turns if t.speaker == label)
-        out[label] = {
-            "display": display.get(label, label),
-            "name": id_map.get(label),
-            "score": round(float(score), 4),
-            "enrolled": id_map.get(label) is not None,
-            "total_speech_sec": round(float(total), 1),
-        }
-    return out
+    return _assemble(diar, id_map, display, store)

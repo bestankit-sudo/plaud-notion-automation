@@ -111,7 +111,21 @@ async function renderSpeakerKey(rid) {
     o.value = n;
     dl.appendChild(o);
   }
-  card.append(h, note, dl);
+  const undo = document.createElement("button");
+  undo.type = "button";
+  undo.className = "spk-link";
+  undo.textContent = "Undo last naming";
+  undo.addEventListener("click", async () => {
+    undo.disabled = true;
+    try {
+      const r = await fetch("/api/speakers/undo", { method: "POST" });
+      if (!r.ok) throw new Error();
+      loadDetail(rid, document.querySelector(".row.active"));
+    } catch (e) {
+      undo.textContent = "nothing to undo";
+    }
+  });
+  card.append(h, note, undo, dl);
   for (const sp of data.speakers) card.appendChild(speakerRow(rid, sp));
   host.replaceChildren(card);
 }
@@ -190,6 +204,36 @@ function speakerRow(rid, sp) {
     }
   });
   actions.append(hear, audio, input, save, status);
+
+  if (sp.enrolled) {
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.className = "spk-link";
+    rename.textContent = "rename everywhere";
+    rename.title = "Rename this person across all meetings (merges if the new name exists)";
+    rename.addEventListener("click", async () => {
+      const next = input.value.trim();
+      if (!next || next === sp.display) {
+        status.textContent = "enter a new name";
+        return;
+      }
+      rename.disabled = true;
+      status.textContent = "renaming…";
+      try {
+        const r = await fetch("/api/speakers/rename", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ old: sp.display, new: next }),
+        });
+        if (!r.ok) throw new Error();
+        status.textContent = "renamed ✓";
+        setTimeout(() => loadDetail(rid, document.querySelector(".row.active")), 350);
+      } catch (e) {
+        status.textContent = "failed";
+        rename.disabled = false;
+      }
+    });
+    actions.appendChild(rename);
+  }
 
   row.append(head, actions);
   return row;

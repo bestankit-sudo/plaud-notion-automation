@@ -132,3 +132,82 @@ def test_name_bad_input(state):
     c = _client(state)
     assert c.post("/api/meetings/rec1/speakers/BAD/name", json={"name": "X"}).status_code == 400
     assert c.post("/api/meetings/rec1/speakers/SPEAKER_00/name", json={"name": "  "}).status_code == 400
+
+
+def test_meeting_speakers_uses_persisted_labelmap(state):
+    _seed_meeting(state, "rec1")
+    from plaud_worker import naming
+    naming.write_labelmap("rec1", state, {"SPEAKER_00": {"label": "SPEAKER_00", "display": "Pinned Name",
+                                                          "name": "Pinned Name", "score": 0.9,
+                                                          "enrolled": True, "total_speech_sec": 3.0}})
+    c = _client(state)
+    byl = {s["label"]: s for s in c.get("/api/meetings/rec1/speakers").json()["speakers"]}
+    assert byl["SPEAKER_00"]["display"] == "Pinned Name"
+
+
+def test_name_updates_labelmap_and_logs_proto(state):
+    _seed_meeting(state, "rec1")
+    _seed_notes(state, "rec1", "Guest 1")
+    c = _client(state)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    from plaud_worker import naming
+    lm = naming.load_labelmap("rec1", state)
+    assert lm["SPEAKER_01"]["display"] == "Akash Jain" and lm["SPEAKER_01"]["enrolled"] is True
+    import json as _j
+    last = [_j.loads(x) for x in (state / "speaker_log.jsonl").read_text().splitlines()][-1]
+    assert last["old_display"] == "Guest 1" and isinstance(last["proto_id"], int) and last["scope"] == "this"
+
+
+def test_backfill_relabels_other_meetings(state):
+    # rec1 named in-request (scope this); rec2 has the same voice as Guest, back-filled
+    _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
+    _seed_meeting(state, "rec2"); _seed_notes(state, "rec2", "Guest 1")
+    # rec2 has a persisted labelmap (as every pipeline-processed meeting does): its
+    # SPEAKER_01 currently shows as "Guest 1". Back-fill uses this authoritative record.
+    from plaud_worker import naming
+    naming.write_labelmap("rec2", state, {
+        "SPEAKER_01": {"label": "SPEAKER_01", "display": "Guest 1", "name": None,
+                       "score": 0.0, "enrolled": False, "total_speech_sec": 1.0},
+    })
+    import app.speakers_api as sp
+    c = _client(state)
+    # enroll SPEAKER_01's voice as Akash on rec1 (scope this so the request doesn't block on backfill)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    # now run backfill synchronously and assert rec2 got relabeled
+    from plaud_worker.voiceprints import VoiceprintStore  # noqa
+    res = sp._backfill("Akash Jain", state, enqueue_notion=False)
+    assert "rec2" in res["relabeled"]
+    m2 = c.get("/api/meetings/rec2").json()
+    assert any(t["speaker"] == "Akash Jain" for t in m2["transcript"])
+
+
+def test_backfill_enqueues_notion(state):
+    _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
+    import app.speakers_api as sp
+    c = _client(state)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    sp._backfill("Akash Jain", state, enqueue_notion=True)
+    assert (state / "relabel_queue" / "rec1.json").exists()
+
+
+def test_undo_removes_enrollment(state):
+    _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
+    c = _client(state)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    assert "Akash Jain" in [s["name"] for s in c.get("/api/speakers").json()["speakers"]]
+    r = c.post("/api/speakers/undo")
+    assert r.status_code == 200 and r.json()["reverted"] == "rec1"
+    # the voice is no longer enrolled, and the meeting reverted to Guest 1
+    assert "Akash Jain" not in [s["name"] for s in c.get("/api/speakers").json()["speakers"]]
+    m = c.get("/api/meetings/rec1").json()
+    assert any(t["speaker"] == "Guest 1" for t in m["transcript"])
+
+
+def test_global_rename_merges(state):
+    _seed_meeting(state, "rec1")
+    from plaud_worker.voiceprints import VoiceprintStore
+    s = VoiceprintStore(state / "voiceprints.db"); s.enroll("Speaker A", __import__("numpy").array([1.0]+[0.0]*255, dtype="float32")); s.close()
+    c = _client(state)
+    assert c.post("/api/speakers/rename", json={"old": "Speaker A", "new": "Rajeev"}).status_code == 200
+    assert "Rajeev" in [x["name"] for x in c.get("/api/speakers").json()["speakers"]]
+    assert "Speaker A" not in [x["name"] for x in c.get("/api/speakers").json()["speakers"]]
