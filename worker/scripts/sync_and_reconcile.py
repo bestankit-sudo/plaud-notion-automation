@@ -15,6 +15,7 @@ import time
 from plaud_worker.config import Settings
 from plaud_worker.notify import notify_failures
 from plaud_worker.reconcile import reconcile
+from plaud_worker.relabel import drain_relabel_queue
 from plaud_worker.riffado_auth import make_session, trigger_sync
 
 
@@ -35,6 +36,10 @@ def main() -> None:
             _log(f"sync trigger failed (continuing to reconcile): {e}")
     else:
         _log("no RIFFADO_ADMIN_* creds set — skipping sync trigger, reconciling existing")
+
+    drained = drain_relabel_queue(s, on_event=_log)
+    if drained:
+        _log(f"relabel_queue: drained {drained} re-publish(es)")
 
     report = reconcile(s, on_event=_log)
     _log(f"reconcile done: {report.summary()}")
