@@ -17,7 +17,7 @@ async function loadStatus() {
     return;
   }
   stepsEl.replaceChildren();
-  steps.forEach((s, i) => stepsEl.appendChild(renderStep(s, i)));
+  (steps || []).forEach((s, i) => stepsEl.appendChild(renderStep(s, i)));
 }
 
 function badge(done) {
@@ -72,7 +72,7 @@ function renderStep(s, i) {
     actions.appendChild(runButton(s, log, detail, badgeEl));
   } else if (s.id === "launchd") {
     const label = s.done ? "Reload background services" : "Start background services";
-    actions.appendChild(button(label, "step-btn primary", () => loadAgents(detail, log, badgeEl)));
+    actions.appendChild(button(label, "step-btn primary", (e) => loadAgents(detail, log, badgeEl, e.currentTarget)));
   } else {
     actions.appendChild(runButton(s, log, detail, badgeEl));
   }
@@ -159,7 +159,8 @@ async function genSecrets(detail) {
   }
 }
 
-async function loadAgents(detail, log, badgeEl) {
+async function loadAgents(detail, log, badgeEl, btn) {
+  if (btn) btn.disabled = true;
   detail.textContent = "loading…";
   detail.className = "step-detail";
   log.hidden = false;
@@ -181,6 +182,8 @@ async function loadAgents(detail, log, badgeEl) {
   } catch (e) {
     detail.textContent = "failed to load agents";
     detail.className = "step-detail bad";
+  } finally {
+    if (btn) btn.disabled = false;
   }
 }
 
