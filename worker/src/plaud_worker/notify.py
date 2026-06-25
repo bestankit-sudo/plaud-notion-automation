@@ -26,7 +26,7 @@ import httpx
 _API = "https://api.telegram.org"
 # The launchd label for the kickstart hint in alerts. Defaults to the sanitized
 # placeholder; set PLAUD_LAUNCHD_LABEL in worker/.env to your real label.
-_DEFAULT_LABEL = "com.example.plaudautomation"
+_DEFAULT_LABEL = "com.plaudautomation"
 
 
 def send_telegram(

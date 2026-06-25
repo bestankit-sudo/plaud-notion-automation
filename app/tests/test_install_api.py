@@ -76,7 +76,7 @@ def test_riffado_secrets_written(client, tmp_path):
 def test_launchd_render(client, monkeypatch):
     monkeypatch.setattr(install_api, "_run", fake_run({("/opt/homebrew/bin/brew", "--prefix"): (0, "/opt/homebrew\n")}))
     body = client.get("/api/install/launchd").json()
-    assert "com.example.plaudautomation.web" in body["web"]
+    assert "com.plaudautomation.web" in body["web"]
     assert ".venv-ml/bin/python" in body["worker"]
     assert body["load_argv"][0][0] == "launchctl"
     assert isinstance(body["port_in_use"], bool)
@@ -91,8 +91,8 @@ def test_launchd_load_writes_plists_and_bootstraps(client, monkeypatch, tmp_path
     body = client.post("/api/install/launchd/load").json()
     assert body["ok"] is True
     labels = {a["label"] for a in body["agents"]}
-    assert labels == {"com.example.plaudautomation", "com.example.plaudautomation.web"}
-    assert (agents / "com.example.plaudautomation.plist").exists()
-    assert (agents / "com.example.plaudautomation.web.plist").exists()
+    assert labels == {"com.plaudautomation", "com.plaudautomation.web"}
+    assert (agents / "com.plaudautomation.plist").exists()
+    assert (agents / "com.plaudautomation.web.plist").exists()
     bootstraps = [c for c in fr.calls if len(c) >= 2 and c[1] == "bootstrap"]
     assert len(bootstraps) == 2  # one per label

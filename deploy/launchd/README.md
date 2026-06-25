@@ -2,7 +2,7 @@
 
 Runs the Plaud → Notion pipeline hands-free on this Mac.
 
-`com.example.plaudautomation.plist` runs `worker/scripts/sync_and_reconcile.py`
+`com.plaudautomation.plist` runs `worker/scripts/sync_and_reconcile.py`
 **every 30 min and at login**. On a sleeping Mac, launchd defers the interval and
 fires on wake — so the same job is also the boot/wake **catch-up**: it triggers a
 Riffado sync (pulling anything new from Plaud), then reconciles new recordings
@@ -24,15 +24,15 @@ pull new ones from Plaud itself.
 ## Install
 
 ```sh
-cp deploy/launchd/com.example.plaudautomation.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.example.plaudautomation.plist
+cp deploy/launchd/com.plaudautomation.plist ~/Library/LaunchAgents/
+launchctl load ~/Library/LaunchAgents/com.plaudautomation.plist
 tail -f worker/state/automation.log
 ```
 
 To stop / reload:
 
 ```sh
-launchctl unload ~/Library/LaunchAgents/com.example.plaudautomation.plist
+launchctl unload ~/Library/LaunchAgents/com.plaudautomation.plist
 ```
 
 ## Notes

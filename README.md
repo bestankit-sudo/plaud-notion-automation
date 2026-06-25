@@ -71,7 +71,7 @@ That's it. As long as your Mac is on, notes appear by themselves — usually wit
 
 ## ⏰ When it runs (automation)
 
-Driven by a **`launchd` agent** (`com.example.plaudautomation`). It is **polling, not push** — Plaud/Riffado never notify us; the agent checks on a timer.
+Driven by a **`launchd` agent** (`com.plaudautomation`). It is **polling, not push** — Plaud/Riffado never notify us; the agent checks on a timer.
 
 ```mermaid
 flowchart LR
@@ -96,9 +96,9 @@ flowchart LR
 
 **Install / manage:**
 ```bash
-cp deploy/launchd/com.example.plaudautomation.plist ~/Library/LaunchAgents/
-launchctl load   ~/Library/LaunchAgents/com.example.plaudautomation.plist   # enable
-launchctl unload ~/Library/LaunchAgents/com.example.plaudautomation.plist   # pause
+cp deploy/launchd/com.plaudautomation.plist ~/Library/LaunchAgents/
+launchctl load   ~/Library/LaunchAgents/com.plaudautomation.plist   # enable
+launchctl unload ~/Library/LaunchAgents/com.plaudautomation.plist   # pause
 tail -f worker/state/automation.log                                          # watch it run
 ```
 
