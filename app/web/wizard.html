@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>plaudautomation — Setup</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header><h1>plaudautomation — Setup</h1></header>
+  <main class="wizard">
+    <form id="setup">
+      <fieldset>
+        <legend>1 · Where should notes go?</legend>
+        <label><input type="radio" name="destination" value="local" checked /> Local (on this Mac — nothing leaves the machine)</label>
+        <label><input type="radio" name="destination" value="notion" /> Notion (cloud)</label>
+        <div id="notion-fields" hidden>
+          <label>Notion integration token <input type="password" name="NOTION_TOKEN" autocomplete="off" /></label>
+          <label>Parent page id <input type="text" name="notion_parent_page_id" /></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>2 · Which AI writes the summaries?</legend>
+        <div id="models" class="models"></div>
+        <label id="provider-key-label">Provider API key
+          <input type="password" name="PROVIDER_KEY" autocomplete="off" />
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>3 · Worker access</legend>
+        <label>HuggingFace token (one-time, for speaker diarization) <input type="password" name="HF_TOKEN" autocomplete="off" /></label>
+        <label>Riffado base URL <input type="text" name="RIFFADO_BASE_URL" value="http://127.0.0.1:3000" /></label>
+        <label>Riffado API key <input type="password" name="RIFFADO_API_KEY" autocomplete="off" /></label>
+        <label><input type="checkbox" name="speaker_naming_enabled" checked /> Enable speaker naming (name voices from snippets later)</label>
+      </fieldset>
+
+      <button type="submit">Finish setup</button>
+      <p id="error" class="error" role="alert"></p>
+    </form>
+  </main>
+  <script src="/static/wizard.js"></script>
+</body>
+</html>
