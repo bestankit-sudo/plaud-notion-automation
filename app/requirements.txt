@@ -2,3 +2,4 @@
 # worker/.venv. The heavy ML stack stays in worker/requirements-ml.txt.
 fastapi>=0.110
 uvicorn>=0.29
+httpx>=0.28        # server needs it at import (conn_check Test-connections)
