@@ -1,13 +1,13 @@
 """Setup wizard API — writes the destination/provider choice to state/config.json
-and the secrets to worker/.env. No external calls (live 'Test connection' lands in
-Plan 2b-2). Secret keys are allowlisted to prevent arbitrary env injection."""
+and the secrets to worker/.env. No external calls (live 'Test connection' via
+/api/setup/test/*). Secret keys are allowlisted to prevent arbitrary env injection."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app import envfile, paths
+from app import conn_check, envfile, paths
 from app.models_catalog import catalog_with_costs
 from plaud_worker.appconfig import AppConfig
 
@@ -70,3 +70,41 @@ def write_secrets(body: SecretsIn) -> dict:
         raise HTTPException(status_code=400, detail="secret values must not contain newlines")
     envfile.upsert(paths.worker_env(), body.values)
     return {"ok": True, "written": sorted(body.values)}
+
+
+class RiffadoTestIn(BaseModel):
+    base_url: str
+    api_key: str
+
+
+@router.post("/test/riffado")
+def test_riffado(body: RiffadoTestIn) -> dict:
+    return conn_check.check_riffado(body.base_url, body.api_key)
+
+
+class TokenIn(BaseModel):
+    token: str
+
+
+class KeyIn(BaseModel):
+    key: str
+
+
+@router.post("/test/notion")
+def test_notion(body: TokenIn) -> dict:
+    return conn_check.check_notion(body.token)
+
+
+@router.post("/test/openai")
+def test_openai(body: KeyIn) -> dict:
+    return conn_check.check_openai(body.key)
+
+
+@router.post("/test/anthropic")
+def test_anthropic(body: KeyIn) -> dict:
+    return conn_check.check_anthropic(body.key)
+
+
+@router.post("/test/hf")
+def test_hf(body: TokenIn) -> dict:
+    return conn_check.check_hf(body.token)
