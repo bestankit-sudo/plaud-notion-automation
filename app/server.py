@@ -56,3 +56,5 @@ def get_audio(recording_id: str) -> FileResponse:
 @app.get("/", response_class=HTMLResponse)
 def index() -> HTMLResponse:
     return HTMLResponse((WEB_DIR / "index.html").read_text())
+
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
