@@ -53,6 +53,9 @@ class Settings:
     # (POST /api/plaud/sync is session-authed). Reconcile works without it.
     riffado_admin_email: str | None
     riffado_admin_password: str | None
+    # Telegram bot creds for failure alerts (optional — alerts no-op if unset).
+    telegram_bot_token: str | None
+    telegram_chat_id: str | None
     # Where the SQLite ledger + voiceprint DB live.
     state_dir: Path
 
@@ -95,5 +98,7 @@ class Settings:
             hf_token=os.getenv("HF_TOKEN"),
             riffado_admin_email=os.getenv("RIFFADO_ADMIN_EMAIL"),
             riffado_admin_password=os.getenv("RIFFADO_ADMIN_PASSWORD"),
+            telegram_bot_token=os.getenv("TELEGRAM_BOT_TOKEN"),
+            telegram_chat_id=os.getenv("TELEGRAM_CHAT_ID"),
             state_dir=state_dir,
         )

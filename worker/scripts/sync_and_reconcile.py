@@ -13,6 +13,7 @@ import sys
 import time
 
 from plaud_worker.config import Settings
+from plaud_worker.notify import notify_failures
 from plaud_worker.reconcile import reconcile
 from plaud_worker.riffado_auth import make_session, trigger_sync
 
@@ -37,6 +38,13 @@ def main() -> None:
 
     report = reconcile(s, on_event=_log)
     _log(f"reconcile done: {report.summary()}")
+    # Ping Telegram on new failures (deduped); also clears recovered recordings.
+    notify_failures(
+        report,
+        state_dir=s.state_dir,
+        token=s.telegram_bot_token,
+        chat_id=s.telegram_chat_id,
+    )
     if report.failed:
         sys.exit(1)
 
