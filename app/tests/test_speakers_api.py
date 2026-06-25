@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -96,3 +97,38 @@ def test_snippet_extracts_and_caches(state, monkeypatch):
     # second call is cached -> no second extract
     c.get("/api/audio/rec1/snippet?label=SPEAKER_00")
     assert len(calls) == 1
+
+
+def _seed_notes(state, rid, transcript_speaker):
+    from plaud_worker.notes_store import NotesStore
+    from plaud_worker.models import Meeting, TranscriptTurn, Attendee
+    ns = NotesStore(state / "notes.db")
+    ns.upsert(Meeting(recording_id=rid, title="T", recorded_at=datetime(2026, 6, 2, tzinfo=timezone.utc),
+                      attendees=[Attendee(transcript_speaker)],
+                      transcript=[TranscriptTurn(transcript_speaker, "hello")]),
+              audio_rel_path=f"{rid}.mp3")
+    ns.close()
+
+
+def test_name_enrolls_and_relabels(state):
+    _seed_meeting(state, "rec1")
+    _seed_notes(state, "rec1", "Guest 1")  # SPEAKER_01 displays as Guest 1
+    c = _client(state)
+    r = c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain"})
+    assert r.status_code == 200 and r.json()["enrolled"] is True
+    # the voice is now enrolled -> appears in the library
+    names = [s["name"] for s in c.get("/api/speakers").json()["speakers"]]
+    assert "Akash Jain" in names
+    # this meeting's transcript was relabeled locally
+    m = c.get("/api/meetings/rec1").json()
+    assert any(t["speaker"] == "Akash Jain" for t in m["transcript"])
+    assert not any(t["speaker"] == "Guest 1" for t in m["transcript"])
+    # audit log written
+    assert (state / "speaker_log.jsonl").exists()
+
+
+def test_name_bad_input(state):
+    _seed_meeting(state, "rec1")
+    c = _client(state)
+    assert c.post("/api/meetings/rec1/speakers/BAD/name", json={"name": "X"}).status_code == 400
+    assert c.post("/api/meetings/rec1/speakers/SPEAKER_00/name", json={"name": "  "}).status_code == 400
