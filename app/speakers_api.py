@@ -79,67 +79,64 @@ def _backfill(name: str, state: "Path", *, enqueue_notion: bool) -> dict:
         try:
             for diar_path in sorted(diar_dir.glob("*.json")):
                 rid = diar_path.stem
-                # Load embeddings for this meeting
+                # Best-effort per meeting: one bad meeting (corrupt diar, etc.) must
+                # not silently abort the whole background sweep (a known failure mode).
                 try:
                     diar = load_diar(diar_path)
+                    embeddings = diar.embeddings  # {label: [floats]}
+                    if not embeddings:
+                        continue
+
+                    # The STORED labelmap is the authoritative current-display record
+                    # (pipeline writes one per meeting; lazily persisted on first view).
+                    stored_lm = load_labelmap(rid, state) or {}
+                    lm = dict(stored_lm)  # working copy (may be updated per label)
+
+                    changed = False  # any label needed local relabeling
+                    matched = False  # any label cleared 0.75 for name
+
+                    for label, emb in embeddings.items():
+                        nm, score = store.match(emb, threshold=0.0)
+                        if nm != name or score < 0.75:
+                            continue
+                        # This label matches 'name' at >= 0.75.
+                        matched = True
+                        # The persisted labelmap is the authoritative record of the
+                        # string currently shown for this label. If it's absent, SKIP
+                        # rather than guess the old display (a wrong guess would relabel
+                        # the wrong speaker). In production the pipeline writes a labelmap
+                        # for every meeting; legacy meetings get one when first viewed.
+                        stored_entry = stored_lm.get(label)
+                        if stored_entry is None:
+                            continue
+                        old_display = stored_entry.get("display", label)
+                        if old_display == name:
+                            continue  # already correct in stored state
+
+                        _apply_relabel(rid, old_display, name)
+                        base_entry = dict(stored_entry)
+                        base_entry["display"] = name
+                        base_entry["name"] = name
+                        base_entry["enrolled"] = True
+                        lm[label] = base_entry
+                        changed = True
+
+                    if changed:
+                        write_labelmap(rid, state, lm)
+                        relabeled.append(rid)
+                    if matched and enqueue_notion:
+                        _enqueue_notion(rid)
+
+                    # Collision check: if ≥2 labels in this meeting now map to 'name'
+                    all_name_labels = [
+                        lbl for lbl, entry in lm.items()
+                        if entry.get("name") == name or entry.get("display") == name
+                    ]
+                    if len(all_name_labels) >= 2:
+                        collisions.append(rid)
+                        _append_collision_log(rid, name, state)
                 except Exception:
                     continue
-                embeddings = diar.embeddings  # {label: [floats]}
-                if not embeddings:
-                    continue
-
-                # The STORED labelmap is the authoritative current-display record
-                # (pipeline writes one per meeting; lazily persisted on first view).
-                stored_lm = load_labelmap(rid, state) or {}
-                # We need a working copy (may be updated per label)
-                lm = dict(stored_lm)
-
-                changed = False  # any label needed local relabeling
-                matched = False  # any label cleared 0.75 for name
-
-                for label, emb in embeddings.items():
-                    nm, score = store.match(emb, threshold=0.0)
-                    if nm != name or score < 0.75:
-                        continue
-                    # This label matches 'name' at >= 0.75.
-                    matched = True
-                    # The persisted labelmap is the authoritative record of the string
-                    # currently shown for this label. If it's absent, SKIP rather than
-                    # guess the old display (a wrong guess would relabel the wrong
-                    # speaker). In production the pipeline writes a labelmap for every
-                    # meeting; legacy meetings get one when first viewed.
-                    stored_entry = stored_lm.get(label)
-                    if stored_entry is None:
-                        continue
-                    old_display = stored_entry.get("display", label)
-                    if old_display == name:
-                        # Already correct in stored state — no local relabeling needed.
-                        continue
-
-                    # Relabel this meeting locally.
-                    _apply_relabel(rid, old_display, name)
-                    # Update the working labelmap entry.
-                    base_entry = dict(stored_entry)
-                    base_entry["display"] = name
-                    base_entry["name"] = name
-                    base_entry["enrolled"] = True
-                    lm[label] = base_entry
-                    changed = True
-
-                if changed:
-                    write_labelmap(rid, state, lm)
-                    relabeled.append(rid)
-                if matched and enqueue_notion:
-                    _enqueue_notion(rid)
-
-                # Collision check: if ≥2 labels in this meeting now map to 'name'
-                all_name_labels = [
-                    lbl for lbl, entry in lm.items()
-                    if entry.get("name") == name or entry.get("display") == name
-                ]
-                if len(all_name_labels) >= 2:
-                    collisions.append(rid)
-                    _append_collision_log(rid, name, state)
 
         finally:
             store.close()
