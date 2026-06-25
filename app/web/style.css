@@ -33,6 +33,8 @@ audio { width: 100%; margin: 8px 0 16px; }
 .spk-btn:disabled { opacity: 0.5; cursor: default; }
 .spk-input { padding: 5px 8px; border: 1px solid #ccd; border-radius: 6px; font-size: 13px; min-width: 160px; }
 .spk-status { font-size: 13px; color: #2ea44f; }
+.spk-link { background: none; border: 0; color: #335; font-size: 12px; cursor: pointer; padding: 2px 4px; text-decoration: underline; }
+.spk-link:disabled { color: #aaa; cursor: default; text-decoration: none; }
 .wizard { display: block; padding: 24px 28px; max-width: 720px; }
 .wizard fieldset { border: 1px solid #e5e5e5; border-radius: 8px; margin: 0 0 18px; padding: 14px 16px; }
 .wizard legend { font-weight: 600; padding: 0 6px; }

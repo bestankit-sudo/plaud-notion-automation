@@ -88,9 +88,8 @@ def _backfill(name: str, state: "Path", *, enqueue_notion: bool) -> dict:
                 if not embeddings:
                     continue
 
-                # Use the STORED labelmap (not reconstructed) to get the ACTUAL
-                # current display state. If no stored labelmap exists, the meeting's
-                # speakers have not been customized; we fall back to notes.db.
+                # The STORED labelmap is the authoritative current-display record
+                # (pipeline writes one per meeting; lazily persisted on first view).
                 stored_lm = load_labelmap(rid, state) or {}
                 # We need a working copy (may be updated per label)
                 lm = dict(stored_lm)
