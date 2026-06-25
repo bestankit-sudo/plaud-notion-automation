@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 
 from app.install import detect
+from app.install.launchd import WEB_LABEL
 from app.install.plan import Env
 from app.install.steps import ALL_STEPS
 
@@ -43,8 +44,7 @@ def step_done(step_id: str, run: detect.Run, repo_root: Path) -> tuple[bool, str
     if step_id == "plaud_otp":
         return (False, "log into Riffado and paste its API key")
     if step_id == "launchd":
-        label = "com.example.plaudautomation.web"
-        rc, _ = run(["launchctl", "print", f"gui/{os.getuid()}/{label}"])
+        rc, _ = run(["launchctl", "print", f"gui/{os.getuid()}/{WEB_LABEL}"])
         return (rc == 0, "loaded" if rc == 0 else "not loaded")
     return (False, "")
 
