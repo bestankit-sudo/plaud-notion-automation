@@ -243,6 +243,11 @@ class _NameBody(BaseModel):
     scope: str = "all"
 
 
+class _RenameBody(BaseModel):
+    old: str
+    new: str
+
+
 def _append_log(rid: str, label: str, name: str, score: float, *, old_display: str,
                 proto_id: "int | None", scope: str, action: str) -> None:
     line = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "rid": rid,
@@ -332,3 +337,93 @@ def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
             daemon=True,
         ).start()
     return {"ok": True, "enrolled": not already, "name": name}
+
+
+@router.post("/speakers/undo")
+def undo_speaker() -> dict:
+    _require_enabled()
+    log_path = state_dir() / "speaker_log.jsonl"
+    if not log_path.exists():
+        raise HTTPException(status_code=404, detail="no enrollment log found")
+
+    # Find the last line with action=="enroll"
+    entry = None
+    for line in reversed(log_path.read_text(encoding="utf-8").splitlines()):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            parsed = json.loads(line)
+        except ValueError:
+            continue
+        if parsed.get("action") == "enroll":
+            entry = parsed
+            break
+
+    if entry is None:
+        raise HTTPException(status_code=404, detail="no enroll entry to undo")
+
+    rid = entry["rid"]
+    label = entry["label"]
+    name = entry["name"]
+    old_display = entry["old_display"]
+    proto_id = entry.get("proto_id")
+    score = entry.get("score", 0.0)
+
+    with _NAMING_LOCK:
+        store = _vp_store()
+        try:
+            if proto_id is not None:
+                store.delete_prototype(proto_id)
+        finally:
+            store.close()
+
+        # Revert the current meeting's relabel (swap name → old_display)
+        _apply_relabel(rid, name, old_display)
+
+        # Update the labelmap entry back to unenrolled state
+        lm = load_labelmap(rid, state_dir()) or {}
+        if label in lm:
+            base = dict(lm[label])
+            base["display"] = old_display
+            base["name"] = None
+            base["enrolled"] = False
+            lm[label] = base
+        else:
+            lm[label] = {
+                "label": label,
+                "display": old_display,
+                "name": None,
+                "score": round(float(score), 4),
+                "enrolled": False,
+                "total_speech_sec": 0.0,
+            }
+        write_labelmap(rid, state_dir(), lm)
+
+        _append_log(rid, label, old_display, score, old_display=name,
+                    proto_id=proto_id, scope=entry.get("scope", "this"), action="undo")
+
+    return {"ok": True, "reverted": rid}
+
+
+@router.post("/speakers/rename")
+def rename_speaker(body: _RenameBody) -> dict:
+    _require_enabled()
+    old = body.old.strip()
+    new = body.new.strip()
+    if not old or not new:
+        raise HTTPException(status_code=400, detail="old and new must not be blank")
+
+    with _NAMING_LOCK:
+        store = _vp_store()
+        try:
+            store.rename(old, new)
+        finally:
+            store.close()
+
+    threading.Thread(
+        target=lambda: _backfill(new, state_dir(), enqueue_notion=_destination() == "notion"),
+        daemon=True,
+    ).start()
+
+    return {"ok": True}

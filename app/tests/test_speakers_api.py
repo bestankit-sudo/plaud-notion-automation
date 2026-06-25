@@ -188,3 +188,26 @@ def test_backfill_enqueues_notion(state):
     c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
     sp._backfill("Akash Jain", state, enqueue_notion=True)
     assert (state / "relabel_queue" / "rec1.json").exists()
+
+
+def test_undo_removes_enrollment(state):
+    _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
+    c = _client(state)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    assert "Akash Jain" in [s["name"] for s in c.get("/api/speakers").json()["speakers"]]
+    r = c.post("/api/speakers/undo")
+    assert r.status_code == 200 and r.json()["reverted"] == "rec1"
+    # the voice is no longer enrolled, and the meeting reverted to Guest 1
+    assert "Akash Jain" not in [s["name"] for s in c.get("/api/speakers").json()["speakers"]]
+    m = c.get("/api/meetings/rec1").json()
+    assert any(t["speaker"] == "Guest 1" for t in m["transcript"])
+
+
+def test_global_rename_merges(state):
+    _seed_meeting(state, "rec1")
+    from plaud_worker.voiceprints import VoiceprintStore
+    s = VoiceprintStore(state / "voiceprints.db"); s.enroll("Speaker A", __import__("numpy").array([1.0]+[0.0]*255, dtype="float32")); s.close()
+    c = _client(state)
+    assert c.post("/api/speakers/rename", json={"old": "Speaker A", "new": "Rajeev"}).status_code == 200
+    assert "Rajeev" in [x["name"] for x in c.get("/api/speakers").json()["speakers"]]
+    assert "Speaker A" not in [x["name"] for x in c.get("/api/speakers").json()["speakers"]]
