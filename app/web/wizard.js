@@ -87,3 +87,40 @@ form.addEventListener("submit", async (e) => {
 });
 
 loadModels();
+
+function setStatus(which, ok, detail) {
+  const el = document.querySelector(`.test-status[data-status="${which}"]`);
+  if (!el) return;
+  el.textContent = (ok ? "✓ " : "✗ ") + detail;
+  el.className = "test-status " + (ok ? "ok" : "bad");
+}
+
+async function runTest(which) {
+  let endpoint, payload;
+  if (which === "provider") {
+    if (!selectedModel) { setStatus("provider", false, "pick a model first"); return; }
+    endpoint = selectedModel.provider; // "anthropic" | "openai"
+    payload = { key: form.PROVIDER_KEY.value.trim() };
+  } else if (which === "hf") {
+    endpoint = "hf"; payload = { token: form.HF_TOKEN.value.trim() };
+  } else if (which === "notion") {
+    endpoint = "notion"; payload = { token: form.NOTION_TOKEN.value.trim() };
+  } else if (which === "riffado") {
+    endpoint = "riffado";
+    payload = { base_url: form.RIFFADO_BASE_URL.value.trim(), api_key: form.RIFFADO_API_KEY.value.trim() };
+  }
+  setStatus(which, false, "testing…");
+  try {
+    const res = await fetch(`/api/setup/test/${endpoint}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const body = await res.json();
+    setStatus(which, !!body.ok, body.detail || (body.ok ? "ok" : "failed"));
+  } catch (e) {
+    setStatus(which, false, "request failed");
+  }
+}
+
+document.querySelectorAll(".test-btn").forEach((b) =>
+  b.addEventListener("click", () => runTest(b.dataset.test))
+);

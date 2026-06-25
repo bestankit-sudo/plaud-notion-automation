@@ -28,3 +28,7 @@ audio { width: 100%; margin: 8px 0 16px; }
 .model-cost { color: #888; font-size: 13px; white-space: nowrap; }
 .wizard button { background: #335; color: #fff; border: 0; border-radius: 6px; padding: 10px 18px; font-size: 15px; cursor: pointer; }
 .error { color: #c0392b; }
+.test-btn { background: #eef; color: #335; border: 1px solid #ccd; border-radius: 6px; padding: 4px 10px; font-size: 13px; cursor: pointer; margin: 4px 8px 4px 0; }
+.test-status { font-size: 13px; }
+.test-status.ok { color: #2ea44f; }
+.test-status.bad { color: #c0392b; }
