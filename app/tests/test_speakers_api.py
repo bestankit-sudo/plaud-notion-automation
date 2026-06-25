@@ -162,6 +162,13 @@ def test_backfill_relabels_other_meetings(state):
     # rec1 named in-request (scope this); rec2 has the same voice as Guest, back-filled
     _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
     _seed_meeting(state, "rec2"); _seed_notes(state, "rec2", "Guest 1")
+    # rec2 has a persisted labelmap (as every pipeline-processed meeting does): its
+    # SPEAKER_01 currently shows as "Guest 1". Back-fill uses this authoritative record.
+    from plaud_worker import naming
+    naming.write_labelmap("rec2", state, {
+        "SPEAKER_01": {"label": "SPEAKER_01", "display": "Guest 1", "name": None,
+                       "score": 0.0, "enrolled": False, "total_speech_sec": 1.0},
+    })
     import app.speakers_api as sp
     c = _client(state)
     # enroll SPEAKER_01's voice as Akash on rec1 (scope this so the request doesn't block on backfill)

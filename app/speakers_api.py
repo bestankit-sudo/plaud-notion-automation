@@ -104,16 +104,15 @@ def _backfill(name: str, state: "Path", *, enqueue_notion: bool) -> dict:
                         continue
                     # This label matches 'name' at >= 0.75.
                     matched = True
-                    # Determine the OLD display from the stored labelmap entry.
+                    # The persisted labelmap is the authoritative record of the string
+                    # currently shown for this label. If it's absent, SKIP rather than
+                    # guess the old display (a wrong guess would relabel the wrong
+                    # speaker). In production the pipeline writes a labelmap for every
+                    # meeting; legacy meetings get one when first viewed.
                     stored_entry = stored_lm.get(label)
-                    if stored_entry is not None:
-                        old_display = stored_entry.get("display", label)
-                    else:
-                        # No stored labelmap entry — infer old_display from notes.db.
-                        # Any speaker turn attributed to this SPEAKER_XX label will
-                        # have the ephemeral "Guest N" text.  We look it up now.
-                        old_display = _get_notes_display(rid, label, state)
-
+                    if stored_entry is None:
+                        continue
+                    old_display = stored_entry.get("display", label)
                     if old_display == name:
                         # Already correct in stored state — no local relabeling needed.
                         continue
@@ -121,7 +120,7 @@ def _backfill(name: str, state: "Path", *, enqueue_notion: bool) -> dict:
                     # Relabel this meeting locally.
                     _apply_relabel(rid, old_display, name)
                     # Update the working labelmap entry.
-                    base_entry = dict(stored_entry) if stored_entry is not None else {}
+                    base_entry = dict(stored_entry)
                     base_entry["display"] = name
                     base_entry["name"] = name
                     base_entry["enrolled"] = True
@@ -147,61 +146,6 @@ def _backfill(name: str, state: "Path", *, enqueue_notion: bool) -> dict:
             store.close()
 
     return {"relabeled": relabeled, "collisions": collisions}
-
-
-def _get_notes_display(rid: str, label: str, state: "Path") -> str:
-    """Return the current display text stored in notes.db for the speaker `label`
-    by cross-referencing raw transcript segments (with timestamps) against the diar
-    turns. Used by _backfill when no stored labelmap entry exists yet.
-    Falls back to `label` itself on any error."""
-    from pathlib import Path as _Path
-    db_path = _Path(state) / "notes.db"
-    diar_path = _Path(state) / "diar_full" / f"{rid}.json"
-    tr_path = _Path(state) / "transcripts" / f"{rid}.json"
-    if not diar_path.exists() or not tr_path.exists():
-        return label
-    try:
-        diar = load_diar(diar_path)
-        tr_data = json.loads(tr_path.read_text())
-        segments = tr_data.get("segments", [])
-    except (ValueError, OSError):
-        return label
-    ns = NotesStore(db_path)
-    try:
-        m = ns.get(rid)
-    finally:
-        ns.close()
-    if m is None or not m.transcript:
-        return label
-    # Assign each raw segment to its max-overlap diar label
-    seg_to_diar: list[str | None] = []
-    for seg in segments:
-        s0, s1 = seg.get("start", 0.0), seg.get("end", 0.0)
-        best_lbl, best_ov = None, 0.0
-        for t in diar.turns:
-            ov = max(0.0, min(s1, t.end) - max(s0, t.start))
-            if ov > best_ov:
-                best_lbl, best_ov = t.speaker, ov
-        seg_to_diar.append(best_lbl)
-    # Walk segments and coalesce into turns (same algorithm as label_segments)
-    coalesced_lbl: list[str | None] = []
-    for dl in seg_to_diar:
-        if coalesced_lbl and coalesced_lbl[-1] == dl:
-            pass  # same speaker, same coalesced turn
-        else:
-            coalesced_lbl.append(dl)
-    # Find the coalesced turn index where diar label == our target label.
-    # Clamp to transcript length: if the stored transcript has fewer turns than
-    # the coalesced list (e.g., a simplified seeded meeting), use the closest turn.
-    for i, dl in enumerate(coalesced_lbl):
-        if dl == label:
-            idx = min(i, len(m.transcript) - 1)
-            return m.transcript[idx].speaker
-    # Fallback: if the label appears in diar but we couldn't map it via segments,
-    # return the only speaker in the transcript that exists (single-speaker seed).
-    if len(m.transcript) == 1:
-        return m.transcript[0].speaker
-    return label
 
 
 def _append_collision_log(rid: str, name: str, state: "Path") -> None:
