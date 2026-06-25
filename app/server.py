@@ -13,8 +13,10 @@ from plaud_worker.appconfig import AppConfig
 from plaud_worker.notes_store import NotesStore
 
 from app.paths import audio_dir, notes_db, state_dir
+from app.setup_api import router as setup_router
 
 app = FastAPI(title="plaudautomation")
+app.include_router(setup_router)
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
