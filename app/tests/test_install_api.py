@@ -80,3 +80,19 @@ def test_launchd_render(client, monkeypatch):
     assert ".venv-ml/bin/python" in body["worker"]
     assert body["load_argv"][0][0] == "launchctl"
     assert isinstance(body["port_in_use"], bool)
+
+
+def test_launchd_load_writes_plists_and_bootstraps(client, monkeypatch, tmp_path):
+    agents = tmp_path / "agents"
+    monkeypatch.setenv("LAUNCH_AGENTS_DIR", str(agents))
+    monkeypatch.setattr(install_api, "_run", fake_run({("/opt/homebrew/bin/brew", "--prefix"): (0, "/opt/homebrew\n")}))
+    fr = FakeRunner({})  # launchctl bootout/bootstrap -> (0, [])
+    monkeypatch.setattr(install_api, "_runner", fr)
+    body = client.post("/api/install/launchd/load").json()
+    assert body["ok"] is True
+    labels = {a["label"] for a in body["agents"]}
+    assert labels == {"com.example.plaudautomation", "com.example.plaudautomation.web"}
+    assert (agents / "com.example.plaudautomation.plist").exists()
+    assert (agents / "com.example.plaudautomation.web.plist").exists()
+    bootstraps = [c for c in fr.calls if len(c) >= 2 and c[1] == "bootstrap"]
+    assert len(bootstraps) == 2  # one per label

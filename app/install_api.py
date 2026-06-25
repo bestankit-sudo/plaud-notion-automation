@@ -38,6 +38,10 @@ def _riffado_env(repo_root: Path) -> Path:
     return Path(os.getenv("RIFFADO_ENV_FILE", str(repo_root / "deploy" / "riffado" / ".env")))
 
 
+def _launch_agents_dir() -> Path:
+    return Path(os.getenv("LAUNCH_AGENTS_DIR", str(Path.home() / "Library" / "LaunchAgents")))
+
+
 def _port_in_use(port: int) -> bool:
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.settimeout(0.2)
@@ -103,8 +107,37 @@ def launchd_render() -> dict:
         "web": launchd.render_web_plist(repo, server_py, env.brew_prefix),
         "load_argv": launchd.install_argv(
             launchd.WEB_LABEL,
-            Path.home() / "Library" / "LaunchAgents" / f"{launchd.WEB_LABEL}.plist",
+            _launch_agents_dir() / f"{launchd.WEB_LABEL}.plist",
             os.getuid(),
         ),
         "port_in_use": _port_in_use(8787),
     }
+
+
+@router.post("/launchd/load")
+def launchd_load() -> dict:
+    """Write both rendered plists to ~/Library/LaunchAgents (overridable) and
+    bootout->bootstrap each into gui/$UID. This is the worker-plist repoint: the
+    worker agent now runs via worker/.venv-ml. launchctl runs only via _runner."""
+    repo = _repo_root()
+    env = status_mod.resolve_env(_run, repo)
+    ml_py = detect.ml_python(repo)
+    server_py = repo / "worker" / ".venv" / "bin" / "python"
+    agents_dir = _launch_agents_dir()
+    agents_dir.mkdir(parents=True, exist_ok=True)
+    specs = [
+        (launchd.WORKER_LABEL, launchd.render_worker_plist(repo, ml_py, env.brew_prefix)),
+        (launchd.WEB_LABEL, launchd.render_web_plist(repo, server_py, env.brew_prefix)),
+    ]
+    uid = os.getuid()
+    agents = []
+    for label, xml in specs:
+        plist_path = agents_dir / f"{label}.plist"
+        plist_path.write_text(xml)
+        bootstrap_rc = 0
+        for argv in launchd.install_argv(label, plist_path, uid):
+            rc = _runner.run(argv, lambda _line: None)
+            if argv[1] == "bootstrap":
+                bootstrap_rc = rc
+        agents.append({"label": label, "plist": str(plist_path), "rc": bootstrap_rc})
+    return {"ok": all(a["rc"] == 0 for a in agents), "agents": agents}
