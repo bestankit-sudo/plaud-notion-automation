@@ -29,9 +29,9 @@ CREATE TABLE IF NOT EXISTS meetings (
 
 class NotesStore:
     def __init__(self, db_path: Path):
-        self._conn = sqlite3.connect(db_path)
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
+        self._conn.execute(_SCHEMA)
         self._conn.commit()
 
     def upsert(self, meeting: Meeting, *, audio_rel_path: str | None) -> str:
