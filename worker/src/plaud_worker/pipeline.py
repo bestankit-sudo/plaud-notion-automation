@@ -117,6 +117,8 @@ def process_recording(
     labelled = _labelled_transcript(str(dest), rid, diar, settings)
 
     display = display_names(labelled, id_map)
+    from .naming import build_labelmap, write_labelmap
+    write_labelmap(rid, settings.state_dir, build_labelmap(diar, id_map, display, store))
     for turn in labelled:
         turn.speaker = display.get(turn.speaker, turn.speaker)
     transcript_text = "\n".join(f"{t.speaker}: {t.text}" for t in labelled)
