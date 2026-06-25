@@ -14,6 +14,7 @@ from .diarize import diarize_cached, label_segments
 from .identify import identify_speakers
 from .ledger import Ledger
 from .models import Attendee, Meeting
+from .naming import display_names
 from .riffado import RiffadoClient
 from .summarizers import build_summarizer
 from .transcribe import transcribe_cached
@@ -61,24 +62,6 @@ def _labelled_transcript(audio_path: str, rid: str, diar, settings) -> list:
     ml_cache.write_text(_json.dumps([{"speaker": t.speaker, "text": t.text} for t in turns],
                                     ensure_ascii=False))
     return turns
-
-
-def _display_names(turns, id_map: dict[str, str | None]) -> dict[str, str]:
-    """Map anonymous labels to display names: an identified person or stable
-    handle (Sam Rivers / Jordan / Speaker A...), else an ephemeral 'Guest N'
-    for one-off voices we don't recognise (these aren't in the Speaker Key)."""
-    display: dict[str, str] = {}
-    guest = 0
-    for t in turns:
-        if t.speaker in display:
-            continue
-        name = id_map.get(t.speaker)
-        if name:
-            display[t.speaker] = name
-        else:
-            guest += 1
-            display[t.speaker] = f"Guest {guest}"
-    return display
 
 
 def _write_meeting(meeting: Meeting, settings: Settings, ledger: Ledger,
@@ -133,7 +116,7 @@ def process_recording(
     id_map = identify_speakers(diar, store, threshold=0.75)
     labelled = _labelled_transcript(str(dest), rid, diar, settings)
 
-    display = _display_names(labelled, id_map)
+    display = display_names(labelled, id_map)
     for turn in labelled:
         turn.speaker = display.get(turn.speaker, turn.speaker)
     transcript_text = "\n".join(f"{t.speaker}: {t.text}" for t in labelled)
