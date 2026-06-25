@@ -6,17 +6,16 @@
 
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 
 from .config import Settings
+from .destinations import build_destination
 from .diarize import diarize_cached, label_segments
 from .identify import identify_speakers
 from .ledger import Ledger
 from .models import Attendee, Meeting
-from .notion import NotionWriter
 from .riffado import RiffadoClient
-from .structure import structure
+from .summarizers import build_summarizer
 from .transcribe import transcribe_cached
 from .voiceprints import VoiceprintStore
 
@@ -82,6 +81,30 @@ def _display_names(turns, id_map: dict[str, str | None]) -> dict[str, str]:
     return display
 
 
+def _write_meeting(meeting: Meeting, settings: Settings, ledger: Ledger,
+                   *, parent_page_id: str | None = None) -> str:
+    """Publish the meeting to the configured destination, record the ref, and
+    return it. Notion publishes update in place when the prior page still exists."""
+    destination = build_destination(settings, parent_page_id=parent_page_id)
+    try:
+        prior = ledger.get_ref(meeting.recording_id, destination.name)
+        ref = destination.publish(meeting, prior_ref=prior)
+    finally:
+        close = getattr(destination, "close", None)
+        if close:
+            close()
+    ledger.set_ref(meeting.recording_id, destination.name, ref)
+    ledger.upsert(
+        meeting.recording_id,
+        notion_page_id=(ref if destination.name == "notion" else None),
+        status="processed",
+    )
+    if destination.name == "notion":
+        # link back to the page for the caller to open
+        meeting.source_url = "https://www.notion.so/" + ref.replace("-", "")
+    return ref
+
+
 def process_recording(
     rid: str,
     settings: Settings,
@@ -118,11 +141,9 @@ def process_recording(
     transcript_text = "\n".join(f"{t.speaker}: {t.text}" for t in labelled)
 
     participants = sorted(set(display.values()))
-    gen_title, overview, sections, actions = structure(
+    gen_title, overview, sections, actions = build_summarizer(settings).summarize(
         transcript_text,
         title=rec.get("title") or "Untitled",
-        api_key=settings.openai_api_key,
-        model=os.getenv("OPENAI_MODEL", "gpt-5.5"),
         participants=participants,
     )
 
@@ -150,9 +171,5 @@ def process_recording(
     (meetings_dir / f"{rid}.json").write_text(_json.dumps(meeting.to_dict(), ensure_ascii=False))
 
     if write:
-        with NotionWriter(settings.notion_token) as w:
-            page_id = w.create_meeting_page(parent, meeting)
-            page_url = w.page_url(page_id)
-        ledger.upsert(rid, notion_page_id=page_id, status="processed")
-        meeting.source_url = page_url  # for the caller to open
+        _write_meeting(meeting, settings, ledger, parent_page_id=parent_page_id)
     return meeting
