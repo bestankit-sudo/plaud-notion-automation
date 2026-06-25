@@ -71,3 +71,24 @@ def test_prerequisite_missing_emits_error():
     err = [d for e, d in _frames(cap) if e == "error"][0]
     assert "prerequisite" in err["detail"].lower()
     assert fr.calls == []
+
+
+def test_mid_sequence_failure_stops_at_right_index():
+    cap = []
+    venv = ["/p/python3.12", "-m", "venv", "/r/worker/.venv-ml"]
+    upgrade = ["/r/worker/.venv-ml/bin/python", "-m", "pip", "install", "--upgrade", "pip"]
+    # the ml plan is [venv-create, pip-upgrade, pip-install]; fail the 2nd command
+    fr = FakeRunner({
+        tuple(venv): (0, ["created venv"]),
+        tuple(upgrade): (1, ["boom"]),
+    })
+    ok = run_step("ml", _env(py312="/p/python3.12"), fr, already_done=False, emit=cap.append)
+    assert ok is False
+    # commands 1 and 2 ran; pip-install (3) did NOT
+    assert fr.calls == [venv, upgrade]
+    frames = _frames(cap)
+    log_lines = [d["line"] for e, d in frames if e == "log"]
+    assert "boom" in log_lines  # failing command's output streamed before the error
+    err = [d for e, d in frames if e == "error"][0]
+    assert err["cmd"] == "/r/worker/.venv-ml/bin/python -m pip install --upgrade pip"
+    assert err["code"] == 1
