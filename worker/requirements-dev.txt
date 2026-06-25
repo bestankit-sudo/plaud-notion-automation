@@ -1,0 +1,2 @@
+# Test-only deps (not needed at runtime).
+pytest>=8.0
