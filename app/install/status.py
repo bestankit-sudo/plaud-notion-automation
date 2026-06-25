@@ -53,5 +53,8 @@ def step_status(run: detect.Run, repo_root: Path) -> list[dict]:
     rows: list[dict] = []
     for s in ALL_STEPS:
         done, detail = step_done(s.id, run, repo_root)
-        rows.append({"id": s.id, "title": s.title, "kind": s.kind, "done": done, "detail": detail})
+        rows.append({
+            "id": s.id, "title": s.title, "kind": s.kind,
+            "guide_url": s.guide_url, "done": done, "detail": detail,
+        })
     return rows

@@ -37,3 +37,21 @@ audio { width: 100%; margin: 8px 0 16px; }
 .help-link { color: #335; font-size: 13px; }
 .hint { display: block; color: #888; font-size: 12px; margin: 2px 0 6px; }
 .hint code { background: #f3f3f3; padding: 0 3px; border-radius: 3px; }
+.phase { font-size: 17px; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid #335; }
+.phase .hint { display: inline; font-weight: 400; margin-left: 6px; }
+#install { margin-bottom: 28px; }
+.install-step { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+.step-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.step-num { width: 22px; height: 22px; flex: none; display: grid; place-items: center; background: #eef; color: #335; border-radius: 50%; font-size: 12px; font-weight: 600; }
+.step-title { font-weight: 600; }
+.step-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+.step-badge.done { background: #e6f4ea; color: #2ea44f; }
+.step-badge.pending { background: #f3f3f3; color: #888; }
+.step-detail { font-size: 13px; color: #888; margin-left: auto; }
+.step-detail.ok { color: #2ea44f; }
+.step-detail.bad { color: #c0392b; }
+.step-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.step-btn { background: #eef; color: #335; border: 1px solid #ccd; border-radius: 6px; padding: 5px 12px; font-size: 13px; cursor: pointer; }
+.step-btn.primary { background: #335; color: #fff; border-color: #335; }
+.step-btn:disabled { opacity: 0.5; cursor: default; }
+.step-log { background: #1c1c1c; color: #e6e6e6; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 10px 12px; border-radius: 6px; margin: 8px 0 0; max-height: 220px; overflow-y: auto; white-space: pre-wrap; }
