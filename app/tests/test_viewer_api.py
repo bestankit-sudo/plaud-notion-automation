@@ -40,6 +40,7 @@ def test_list_meetings(client):
     assert r.status_code == 200
     body = r.json()
     assert body["destination"] in ("notion", "local")
+    assert len(body["meetings"]) == 1
     assert body["meetings"][0]["recording_id"] == "rec-1"
     assert body["meetings"][0]["title"] == "Patent Strategy"
 
@@ -61,7 +62,7 @@ def test_meeting_detail_404(client):
 def test_audio_served(client):
     r = client.get("/api/audio/rec-1")
     assert r.status_code == 200
-    assert r.headers["content-type"] == "audio/mpeg"
+    assert r.headers["content-type"].startswith("audio/mpeg")
     assert r.content == b"ID3fake-mp3-bytes"
 
 
