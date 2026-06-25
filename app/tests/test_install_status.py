@@ -47,5 +47,7 @@ def test_step_status_covers_all_steps():
         "brew", "ffmpeg", "py312", "ml", "docker", "riffado", "plaud_otp", "launchd"
     ]
     for r in rows:
-        assert set(r) == {"id", "title", "kind", "done", "detail"}
+        assert set(r) == {"id", "title", "kind", "guide_url", "done", "detail"}
         assert isinstance(r["done"], bool)
+    brew = next(r for r in rows if r["id"] == "brew")
+    assert brew["guide_url"]  # guide steps carry their help URL

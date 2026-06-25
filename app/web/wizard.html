@@ -9,9 +9,16 @@
 <body>
   <header><h1>plaudautomation — Setup</h1></header>
   <main class="wizard">
+    <section id="install">
+      <h2 class="phase">Step 1 · Set up your Mac <small class="hint">one-time — installs the local pipeline (skips anything already present)</small></h2>
+      <div id="install-steps">Loading…</div>
+      <p class="hint">When the steps above are done, configure below ↓</p>
+    </section>
+
     <form id="setup">
+      <h2 class="phase">Step 2 · Configure</h2>
       <fieldset>
-        <legend>1 · Where should notes go?</legend>
+        <legend>Where should notes go?</legend>
         <label><input type="radio" name="destination" value="local" checked /> Local (on this Mac — nothing leaves the machine)</label>
         <label><input type="radio" name="destination" value="notion" /> Notion (cloud)</label>
         <div id="notion-fields" hidden>
@@ -24,7 +31,7 @@
       </fieldset>
 
       <fieldset>
-        <legend>2 · Which AI writes the summaries?</legend>
+        <legend>Which AI writes the summaries?</legend>
         <div id="models" class="models"></div>
         <label id="provider-key-label">Provider API key
           <input type="password" name="PROVIDER_KEY" autocomplete="off" />
@@ -34,7 +41,7 @@
       </fieldset>
 
       <fieldset>
-        <legend>3 · Worker access</legend>
+        <legend>Worker access</legend>
         <label>HuggingFace token (one-time, for speaker diarization) <input type="password" name="HF_TOKEN" autocomplete="off" /></label>
         <small class="hint">Create a <a class="help-link" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">read token ↗</a>, then accept the terms at <a class="help-link" href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener">pyannote/speaker-diarization-3.1 ↗</a>.</small>
         <button type="button" class="test-btn" data-test="hf">Test token</button>
@@ -51,6 +58,7 @@
       <p id="error" class="error" role="alert"></p>
     </form>
   </main>
+  <script src="/static/install.js"></script>
   <script src="/static/wizard.js"></script>
 </body>
 </html>
