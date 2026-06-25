@@ -16,7 +16,6 @@ from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
 from app.paths import audio_dir, notes_db, state_dir
-from plaud_worker.models import Meeting
 from plaud_worker.naming import reconstruct_labelmap
 from plaud_worker.notes_store import NotesStore
 from plaud_worker.voiceprints import VoiceprintStore
@@ -176,6 +175,7 @@ def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
     emb = json.loads(diar_path.read_text()).get("embeddings", {}).get(label)
     if emb is None:
         raise HTTPException(status_code=404, detail="label not in meeting")
+    score = 0.0
     with _NAMING_LOCK:
         store = _vp_store()
         try:
