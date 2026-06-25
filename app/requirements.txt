@@ -1,0 +1,4 @@
+# Local web app (wizard + viewer) server deps. Installed into the shared
+# worker/.venv. The heavy ML stack stays in worker/requirements-ml.txt.
+fastapi>=0.110
+uvicorn>=0.29
