@@ -19,6 +19,13 @@ CREATE TABLE IF NOT EXISTS processed (
     created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS destination_refs (
+    recording_id TEXT NOT NULL,
+    destination  TEXT NOT NULL,
+    ref          TEXT NOT NULL,
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (recording_id, destination)
+);
 """
 
 
@@ -65,6 +72,27 @@ class Ledger:
                 updated_at      = datetime('now')
             """,
             (recording_id, notion_page_id, processing_hash, status),
+        )
+        self._conn.commit()
+
+    def get_ref(self, recording_id: str, destination: str) -> str | None:
+        cur = self._conn.execute(
+            "SELECT ref FROM destination_refs WHERE recording_id = ? AND destination = ?",
+            (recording_id, destination),
+        )
+        row = cur.fetchone()
+        return row["ref"] if row else None
+
+    def set_ref(self, recording_id: str, destination: str, ref: str) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO destination_refs (recording_id, destination, ref)
+            VALUES (?, ?, ?)
+            ON CONFLICT(recording_id, destination) DO UPDATE SET
+                ref        = excluded.ref,
+                updated_at = datetime('now')
+            """,
+            (recording_id, destination, ref),
         )
         self._conn.commit()
 
