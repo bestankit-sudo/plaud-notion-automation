@@ -50,14 +50,16 @@ class VoiceprintStore:
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
 
-    def enroll(self, name: str, embedding) -> None:
+    def enroll(self, name: str, embedding) -> int:
         """Add a sample for `name`: keep the raw embedding as its own prototype
         (so matching can compare against each acoustic condition separately) and
-        also fold it into the running-average centroid (a stable fallback)."""
+        also fold it into the running-average centroid (a stable fallback).
+        Returns the inserted prototype's rowid so the caller can undo the enroll."""
         new = _norm(embedding)
-        self._conn.execute(
+        cur = self._conn.execute(
             "INSERT INTO prototypes (name, embedding) VALUES (?, ?)", (name, new.tobytes())
         )
+        proto_id = cur.lastrowid
         row = self._conn.execute(
             "SELECT embedding, n FROM voiceprints WHERE name = ?", (name,)
         ).fetchone()
@@ -75,6 +77,36 @@ class VoiceprintStore:
                 (name, new.tobytes()),
             )
         self._conn.commit()
+        return proto_id
+
+    def recompute_centroid(self, name: str) -> None:
+        """Rebuild `name`'s centroid from its surviving prototypes (or drop the
+        voiceprint row if none remain). Used to recover from a bad enroll."""
+        rows = self._conn.execute(
+            "SELECT embedding FROM prototypes WHERE name = ?", (name,)
+        ).fetchall()
+        if not rows:
+            self._conn.execute("DELETE FROM voiceprints WHERE name = ?", (name,))
+            self._conn.commit()
+            return
+        vecs = [np.frombuffer(r["embedding"], dtype=np.float32) for r in rows]
+        avg = _norm(np.mean(vecs, axis=0))
+        self._conn.execute(
+            "UPDATE voiceprints SET embedding=?, n=?, updated_at=datetime('now') WHERE name=?",
+            (avg.tobytes(), len(rows), name),
+        )
+        self._conn.commit()
+
+    def delete_prototype(self, proto_id: int) -> None:
+        row = self._conn.execute(
+            "SELECT name FROM prototypes WHERE id = ?", (proto_id,)
+        ).fetchone()
+        if not row:
+            return
+        name = row["name"]
+        self._conn.execute("DELETE FROM prototypes WHERE id = ?", (proto_id,))
+        self._conn.commit()
+        self.recompute_centroid(name)
 
     def match(self, embedding, *, threshold: float = 0.5) -> tuple[str | None, float]:
         """Best-matching name above threshold, with its cosine score.
