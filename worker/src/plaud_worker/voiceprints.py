@@ -41,6 +41,7 @@ def cosine(a, b) -> float:
 
 class VoiceprintStore:
     def __init__(self, db_path: Path):
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(db_path)
         self._conn.row_factory = sqlite3.Row
         self._conn.executescript(_SCHEMA)
