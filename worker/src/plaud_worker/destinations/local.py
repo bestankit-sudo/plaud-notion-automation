@@ -16,6 +16,7 @@ class LocalDestination:
         self._store = NotesStore(notes_db)
 
     def publish(self, meeting: Meeting, *, prior_ref: str | None = None) -> str:
+        # prior_ref unused: upsert by recording_id PK is already idempotent.
         rel = os.path.basename(meeting.audio_path) if meeting.audio_path else None
         return self._store.upsert(meeting, audio_rel_path=rel)
 

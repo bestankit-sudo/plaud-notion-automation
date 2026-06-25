@@ -1,7 +1,7 @@
 """Orchestrator: one recording -> a Circleback-style Notion page.
 
     pull metadata -> download audio -> transcribe -> diarize -> identify speakers
-    -> structure (OpenAI) -> build Meeting -> write Notion -> record in ledger
+    -> summarize -> write to destination -> record in ledger
 """
 
 from __future__ import annotations
@@ -114,8 +114,6 @@ def process_recording(
     parent_page_id: str | None = None,
     write: bool = True,
 ) -> Meeting:
-    parent = parent_page_id or settings.notion_parent_page_id
-
     with RiffadoClient(settings.riffado_base_url, settings.riffado_api_key) as r:
         rec = r.get_recording(rid)
         audio_dir = settings.state_dir / "audio"

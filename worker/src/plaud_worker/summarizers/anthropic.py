@@ -39,12 +39,17 @@ class AnthropicSummarizer:
         user = f"Meeting title: {title}\n{who}\nTranscript:\n{transcript_text}"
         resp = self._client.messages.create(
             model=self._model,
-            max_tokens=8000,
+            max_tokens=16000,
             system=_SYSTEM,
             output_config={"format": {"type": "json_schema", "schema": _SCHEMA}},
             messages=[{"role": "user", "content": user}],
         )
-        text = next(b.text for b in resp.content if b.type == "text")
+        text = next((b.text for b in resp.content if b.type == "text"), None)
+        if text is None:
+            raise RuntimeError(
+                "Anthropic returned no text block to summarize "
+                "(possible refusal or truncated response)"
+            )
         data = json.loads(text)
         gen_title = (data.get("title") or "").strip()
         sections = [Section(heading=s["heading"], bullets=s["bullets"]) for s in data["sections"]]

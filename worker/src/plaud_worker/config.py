@@ -46,7 +46,7 @@ class Settings:
     # Parent page the worker writes meeting child-pages under.
     # Defaults to the scratch TEST page; switch to OTHER_MEETING_CENTRAL_PAGE_ID
     # only once the rendered output is verified.
-    notion_parent_page_id: str
+    notion_parent_page_id: str  # "" when destination != "notion" (only read for Notion)
     openai_api_key: str | None
     # HuggingFace token — used once to download the (gated) pyannote models;
     # diarization/embedding then run fully locally.
