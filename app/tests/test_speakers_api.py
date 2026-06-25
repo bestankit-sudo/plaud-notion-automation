@@ -5,6 +5,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+import app.speakers_api as sp
+
 
 @pytest.fixture
 def state(tmp_path, monkeypatch):
@@ -66,3 +68,31 @@ def test_gated_off(state, monkeypatch):
     c = _client(state)
     assert c.get("/api/speakers").status_code == 404
     assert c.get("/api/meetings/rec1/speakers").status_code == 404
+
+
+def test_snippet_bad_label(state):
+    _seed_meeting(state, "rec1")
+    c = _client(state)
+    assert c.get("/api/audio/rec1/snippet?label=../etc").status_code == 400
+    assert c.get("/api/audio/rec1/snippet?label=SPEAKER_99").status_code == 404  # not in meeting
+
+
+def test_snippet_extracts_and_caches(state, monkeypatch):
+    _seed_meeting(state, "rec1")
+    (state / "audio").mkdir(parents=True, exist_ok=True)
+    (state / "audio" / "rec1.mp3").write_bytes(b"ID3fake")
+    calls = []
+
+    def fake_extract(audio, ranges, out):
+        calls.append((audio, tuple(ranges), out))
+        Path(out).write_bytes(b"ID3snippet")
+
+    monkeypatch.setattr(sp, "_extract", fake_extract)
+    monkeypatch.setattr(sp.shutil, "which", lambda _x: "/opt/homebrew/bin/ffmpeg")
+    c = _client(state)
+    r = c.get("/api/audio/rec1/snippet?label=SPEAKER_00")
+    assert r.status_code == 200 and r.content == b"ID3snippet"
+    assert (state / "snippets_panel" / "rec1_SPEAKER_00.mp3").exists()
+    # second call is cached -> no second extract
+    c.get("/api/audio/rec1/snippet?label=SPEAKER_00")
+    assert len(calls) == 1

@@ -4,12 +4,20 @@ worker modules (naming/voiceprints — no pipeline). Gated on speaker_naming_ena
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 
-from app.paths import state_dir
+from app.paths import audio_dir, state_dir
 from plaud_worker.naming import reconstruct_labelmap
 from plaud_worker.voiceprints import VoiceprintStore
+
+_LABEL_RE = re.compile(r"^SPEAKER_\d+$")
+_SNIPPET_TARGET_SECONDS = 25.0
+_SNIPPET_MAX_SEGMENTS = 8
 
 router = APIRouter(prefix="/api")
 
@@ -53,3 +61,57 @@ def meeting_speakers(rid: str) -> dict:
         store.close()
     speakers = [] if lm is None else [{"label": k, **v} for k, v in sorted(lm.items())]
     return {"recording_id": rid, "threshold": 0.75, "speakers": speakers}
+
+
+def _pick_ranges(turns: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    chosen: list[tuple[float, float]] = []
+    total = 0.0
+    for s, e in sorted(turns, key=lambda r: r[1] - r[0], reverse=True):
+        chosen.append((s, e))
+        total += e - s
+        if total >= _SNIPPET_TARGET_SECONDS or len(chosen) >= _SNIPPET_MAX_SEGMENTS:
+            break
+    return sorted(chosen)
+
+
+def _extract(audio: str, ranges: list[tuple[float, float]], out: str) -> None:
+    parts, labels = [], []
+    for i, (s, e) in enumerate(ranges):
+        parts.append(f"[0]atrim={s:.2f}:{e:.2f},asetpts=PTS-STARTPTS[a{i}]")
+        labels.append(f"[a{i}]")
+    flt = ";".join(parts) + ";" + "".join(labels) + f"concat=n={len(ranges)}:v=0:a=1[out]"
+    subprocess.run(
+        ["ffmpeg", "-y", "-i", audio, "-filter_complex", flt, "-map", "[out]", out],
+        check=True, capture_output=True,
+    )
+
+
+@router.get("/audio/{rid}/snippet")
+def speaker_snippet(rid: str, label: str) -> FileResponse:
+    _require_enabled()
+    if not _LABEL_RE.match(label):
+        raise HTTPException(status_code=400, detail="bad label")
+    base = audio_dir().resolve()
+    audio = (base / f"{rid}.mp3").resolve()
+    if base != audio.parent or not audio.exists():
+        raise HTTPException(status_code=404, detail="audio not found")
+    diar_path = state_dir() / "diar_full" / f"{rid}.json"
+    if not diar_path.exists():
+        raise HTTPException(status_code=404, detail="diarization not found")
+    d = json.loads(diar_path.read_text())
+    if label not in d.get("embeddings", {}):
+        raise HTTPException(status_code=404, detail="label not in meeting")
+    turns = [(t["start"], t["end"]) for t in d["turns"] if t["speaker"] == label]
+    if not turns:
+        raise HTTPException(status_code=404, detail="no audio for label")
+    out_dir = state_dir() / "snippets_panel"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out = out_dir / f"{rid}_{label}.mp3"
+    if not out.exists():
+        if not shutil.which("ffmpeg"):
+            raise HTTPException(status_code=500, detail="ffmpeg not found")
+        try:
+            _extract(str(audio), _pick_ranges(turns), str(out))
+        except subprocess.CalledProcessError:
+            raise HTTPException(status_code=500, detail="snippet extraction failed")
+    return FileResponse(out, media_type="audio/mpeg")
