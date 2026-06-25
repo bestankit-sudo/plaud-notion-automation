@@ -12,8 +12,9 @@ async function loadList() {
     const el = document.createElement("button");
     el.className = "row";
     const when = new Date(m.recorded_at).toLocaleString();
-    el.innerHTML = `<span class="row-title"></span><span class="row-when">${when}</span>`;
+    el.innerHTML = `<span class="row-title"></span><span class="row-when"></span>`;
     el.querySelector(".row-title").textContent = m.title;
+    el.querySelector(".row-when").textContent = when;
     el.onclick = () => loadDetail(m.recording_id, el);
     list.appendChild(el);
   }
@@ -31,7 +32,7 @@ async function loadDetail(rid, rowEl) {
   const m = await res.json();
   const parts = [];
   parts.push(`<h2></h2>`);
-  parts.push(`<p class="meta">${m.duration_label || ""}</p>`);
+  parts.push(`<p class="meta"></p>`);
   parts.push(`<audio controls src="/api/audio/${encodeURIComponent(rid)}"></audio>`);
   if (m.overview?.length) {
     parts.push("<h3>Overview</h3><ul>" + m.overview.map(li).join("") + "</ul>");
@@ -43,7 +44,7 @@ async function loadDetail(rid, rowEl) {
     parts.push("<h3>Action Items</h3><ul>");
     for (const a of m.action_items) {
       const owner = a.owner ? `<strong></strong>: ` : "";
-      parts.push(`<li class="ai" data-owner="${a.owner || ""}">${owner}<span class="task"></span></li>`);
+      parts.push(`<li class="ai">${owner}<span class="task"></span></li>`);
     }
     parts.push("</ul>");
   }
@@ -55,6 +56,8 @@ async function loadDetail(rid, rowEl) {
   }
   detail.innerHTML = parts.join("");
   detail.querySelector("h2").textContent = m.title;
+  const metaEl = detail.querySelector("p.meta");
+  if (metaEl) metaEl.textContent = m.duration_label || "";
   // fill section headings + action item text safely (avoid HTML injection)
   const secHeads = detail.querySelectorAll("h3.sec");
   (m.sections || []).forEach((s, i) => { if (secHeads[i]) secHeads[i].textContent = s.heading; });
