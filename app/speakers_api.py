@@ -199,8 +199,10 @@ def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
         finally:
             store.close()
         _apply_relabel(rid, old_display, name)
-        # Update the persisted labelmap with the newly enrolled entry
-        lm = load_or_reconstruct(rid, store, state_dir()) or {}
+        # Update the persisted labelmap with the newly enrolled entry. Reuse the
+        # pre-enroll map captured while the store was open (never touch the now-closed
+        # store); load_or_reconstruct already persisted it on the call above.
+        lm = dict(lm_before) if lm_before else {}
         lm[label] = {
             "label": label,
             "display": name,
