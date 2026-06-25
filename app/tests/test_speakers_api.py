@@ -132,3 +132,27 @@ def test_name_bad_input(state):
     c = _client(state)
     assert c.post("/api/meetings/rec1/speakers/BAD/name", json={"name": "X"}).status_code == 400
     assert c.post("/api/meetings/rec1/speakers/SPEAKER_00/name", json={"name": "  "}).status_code == 400
+
+
+def test_meeting_speakers_uses_persisted_labelmap(state):
+    _seed_meeting(state, "rec1")
+    from plaud_worker import naming
+    naming.write_labelmap("rec1", state, {"SPEAKER_00": {"label": "SPEAKER_00", "display": "Pinned Name",
+                                                          "name": "Pinned Name", "score": 0.9,
+                                                          "enrolled": True, "total_speech_sec": 3.0}})
+    c = _client(state)
+    byl = {s["label"]: s for s in c.get("/api/meetings/rec1/speakers").json()["speakers"]}
+    assert byl["SPEAKER_00"]["display"] == "Pinned Name"
+
+
+def test_name_updates_labelmap_and_logs_proto(state):
+    _seed_meeting(state, "rec1")
+    _seed_notes(state, "rec1", "Guest 1")
+    c = _client(state)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    from plaud_worker import naming
+    lm = naming.load_labelmap("rec1", state)
+    assert lm["SPEAKER_01"]["display"] == "Akash Jain" and lm["SPEAKER_01"]["enrolled"] is True
+    import json as _j
+    last = [_j.loads(x) for x in (state / "speaker_log.jsonl").read_text().splitlines()][-1]
+    assert last["old_display"] == "Guest 1" and isinstance(last["proto_id"], int) and last["scope"] == "this"

@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
 from app.paths import audio_dir, notes_db, state_dir
-from plaud_worker.naming import reconstruct_labelmap
+from plaud_worker.naming import load_or_reconstruct, load_labelmap, write_labelmap
 from plaud_worker.notes_store import NotesStore
 from plaud_worker.voiceprints import VoiceprintStore
 
@@ -62,10 +62,13 @@ def meeting_speakers(rid: str) -> dict:
     _require_enabled()
     store = _vp_store()
     try:
-        lm = reconstruct_labelmap(rid, store, state_dir(), threshold=0.75)
+        lm = load_or_reconstruct(rid, store, state_dir(), threshold=0.75)
     finally:
         store.close()
-    speakers = [] if lm is None else [{"label": k, **v} for k, v in sorted(lm.items())]
+    speakers = [] if lm is None else [
+        {"label": k, **{x: v[x] for x in v if x != "label"}}
+        for k, v in sorted(lm.items())
+    ]
     return {"recording_id": rid, "threshold": 0.75, "speakers": speakers}
 
 
@@ -125,17 +128,21 @@ def speaker_snippet(rid: str, label: str) -> FileResponse:
 
 class _NameBody(BaseModel):
     name: str
+    scope: str = "all"
 
 
-def _append_log(rid: str, label: str, name: str, score: float, action: str) -> None:
+def _append_log(rid: str, label: str, name: str, score: float, *, old_display: str,
+                proto_id: "int | None", scope: str, action: str) -> None:
     line = json.dumps({"ts": datetime.now(timezone.utc).isoformat(), "rid": rid,
-                       "label": label, "name": name, "score": round(float(score), 4), "action": action})
+                       "label": label, "name": name, "score": round(float(score), 4),
+                       "old_display": old_display, "proto_id": proto_id,
+                       "scope": scope, "action": action})
     with (state_dir() / "speaker_log.jsonl").open("a", encoding="utf-8") as fh:
         fh.write(line + "\n")
 
 
-def _relabel_local(rid: str, label: str, old: str, name: str) -> None:
-    """Replace this meeting's display name for `label` with `name` in notes.db +
+def _apply_relabel(rid: str, old: str, name: str) -> None:
+    """Replace this meeting's display name `old` with `name` in notes.db +
     meetings/{rid}.json. Local-only — no Notion. (Notion re-publish is Phase 2.)"""
     if old == name:
         return
@@ -167,6 +174,7 @@ def _relabel_local(rid: str, label: str, old: str, name: str) -> None:
 def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
     _require_enabled()
     name = body.name.strip()
+    scope = body.scope
     if not name or not _LABEL_RE.match(label):
         raise HTTPException(status_code=400, detail="bad input")
     diar_path = state_dir() / "diar_full" / f"{rid}.json"
@@ -176,19 +184,32 @@ def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
     if emb is None:
         raise HTTPException(status_code=404, detail="label not in meeting")
     score = 0.0
+    proto_id: "int | None" = None
     with _NAMING_LOCK:
         store = _vp_store()
         try:
-            # Capture the old display name BEFORE enrolling (so reconstruct_labelmap
+            # Capture the old display name BEFORE enrolling (so load_or_reconstruct
             # sees the pre-enroll state and returns the current Guest N / display name)
-            lm = reconstruct_labelmap(rid, store, state_dir())
-            old_display = lm[label]["display"] if (lm and label in lm) else label
+            lm_before = load_or_reconstruct(rid, store, state_dir())
+            old_display = lm_before[label]["display"] if (lm_before and label in lm_before) else label
             cur, score = store.match(emb, threshold=0.0)
             already = cur == name and score >= 0.75
             if not already:
-                store.enroll(name, emb)
+                proto_id = store.enroll(name, emb)
         finally:
             store.close()
-        _relabel_local(rid, label, old_display, name)
-        _append_log(rid, label, name, score, "skip" if already else "enroll")
+        _apply_relabel(rid, old_display, name)
+        # Update the persisted labelmap with the newly enrolled entry
+        lm = load_or_reconstruct(rid, store, state_dir()) or {}
+        lm[label] = {
+            "label": label,
+            "display": name,
+            "name": name,
+            "score": round(float(score), 4),
+            "enrolled": True,
+            "total_speech_sec": lm.get(label, {}).get("total_speech_sec", 0.0),
+        }
+        write_labelmap(rid, state_dir(), lm)
+        _append_log(rid, label, name, score, old_display=old_display,
+                    proto_id=proto_id, scope=scope, action="skip" if already else "enroll")
     return {"ok": True, "enrolled": not already, "name": name}
