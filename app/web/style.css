@@ -16,6 +16,23 @@ main { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 53p
 audio { width: 100%; margin: 8px 0 16px; }
 .transcript p { margin: 4px 0; }
 .empty { color: #999; }
+.speaker-key { border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px 14px; margin: 12px 0 16px; background: #fafafd; }
+.speaker-key h3 { margin: 0 0 2px; }
+.spk-row { border-top: 1px solid #eee; padding: 8px 0; }
+.spk-row:first-of-type { border-top: 0; }
+.spk-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.spk-display { font-weight: 600; }
+.spk-badge { font-size: 12px; padding: 2px 8px; border-radius: 10px; }
+.spk-badge.known { background: #e6f4ea; color: #2ea44f; }
+.spk-badge.guest { background: #f3f3f3; color: #888; }
+.spk-dur { font-size: 12px; color: #888; margin-left: auto; }
+.spk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.spk-actions audio { width: 220px; height: 32px; margin: 0; }
+.spk-btn { background: #eef; color: #335; border: 1px solid #ccd; border-radius: 6px; padding: 4px 10px; font-size: 13px; cursor: pointer; }
+.spk-btn.primary { background: #335; color: #fff; border-color: #335; }
+.spk-btn:disabled { opacity: 0.5; cursor: default; }
+.spk-input { padding: 5px 8px; border: 1px solid #ccd; border-radius: 6px; font-size: 13px; min-width: 160px; }
+.spk-status { font-size: 13px; color: #2ea44f; }
 .wizard { display: block; padding: 24px 28px; max-width: 720px; }
 .wizard fieldset { border: 1px solid #e5e5e5; border-radius: 8px; margin: 0 0 18px; padding: 14px 16px; }
 .wizard legend { font-weight: 600; padding: 0 6px; }

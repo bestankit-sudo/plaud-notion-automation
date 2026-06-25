@@ -34,6 +34,7 @@ async function loadDetail(rid, rowEl) {
   parts.push(`<h2></h2>`);
   parts.push(`<p class="meta"></p>`);
   parts.push(`<audio controls src="/api/audio/${encodeURIComponent(rid)}"></audio>`);
+  parts.push('<div id="speaker-key"></div>');
   if (m.overview?.length) {
     parts.push("<h3>Overview</h3><ul>" + m.overview.map(li).join("") + "</ul>");
   }
@@ -78,6 +79,120 @@ async function loadDetail(rid, rowEl) {
       tx.appendChild(p);
     }
   }
+  renderSpeakerKey(rid);
+}
+
+async function renderSpeakerKey(rid) {
+  const host = document.getElementById("speaker-key");
+  if (!host) return;
+  let data, lib;
+  try {
+    const r = await fetch(`/api/meetings/${encodeURIComponent(rid)}/speakers`);
+    if (!r.ok) return; // naming disabled (404) or error
+    data = await r.json();
+    lib = await (await fetch("/api/speakers")).json();
+  } catch (e) {
+    return;
+  }
+  if (!data.speakers || !data.speakers.length) return;
+  const known = (lib.speakers || []).map((s) => s.name);
+
+  const card = document.createElement("div");
+  card.className = "speaker-key";
+  const h = document.createElement("h3");
+  h.textContent = "Speaker Key";
+  const note = document.createElement("small");
+  note.className = "hint";
+  note.textContent = `Name a voice to enroll it — future meetings auto-label it (match ≥ ${data.threshold}).`;
+  const dl = document.createElement("datalist");
+  dl.id = "known-speakers";
+  for (const n of known) {
+    const o = document.createElement("option");
+    o.value = n;
+    dl.appendChild(o);
+  }
+  card.append(h, note, dl);
+  for (const sp of data.speakers) card.appendChild(speakerRow(rid, sp));
+  host.replaceChildren(card);
+}
+
+function speakerRow(rid, sp) {
+  const row = document.createElement("div");
+  row.className = "spk-row";
+
+  const head = document.createElement("div");
+  head.className = "spk-head";
+  const disp = document.createElement("span");
+  disp.className = "spk-display";
+  disp.textContent = sp.display;
+  const badge = document.createElement("span");
+  badge.className = "spk-badge " + (sp.enrolled ? "known" : "guest");
+  badge.textContent = sp.enrolled ? "enrolled ✓" : "Guest";
+  const dur = document.createElement("span");
+  dur.className = "spk-dur";
+  dur.textContent = `${sp.total_speech_sec}s`;
+  head.append(disp, badge, dur);
+  if (!sp.enrolled && typeof sp.score === "number") {
+    const hint = document.createElement("small");
+    hint.className = "hint";
+    hint.textContent = `nearest ${sp.score.toFixed(2)} — needs ≥ 0.75 to auto-label`;
+    head.appendChild(hint);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "spk-actions";
+  const audio = document.createElement("audio");
+  audio.controls = true;
+  audio.preload = "none";
+  audio.hidden = true;
+  const hear = document.createElement("button");
+  hear.type = "button";
+  hear.className = "spk-btn";
+  hear.textContent = "▶ hear";
+  hear.addEventListener("click", () => {
+    if (!audio.src) {
+      audio.src = `/api/audio/${encodeURIComponent(rid)}/snippet?label=${encodeURIComponent(sp.label)}`;
+    }
+    audio.hidden = false;
+    audio.play().catch(() => {});
+  });
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "spk-input";
+  input.placeholder = "name this voice";
+  input.setAttribute("list", "known-speakers");
+  if (sp.enrolled) input.value = sp.display;
+  const save = document.createElement("button");
+  save.type = "button";
+  save.className = "spk-btn primary";
+  save.textContent = "Save";
+  const status = document.createElement("span");
+  status.className = "spk-status";
+  save.addEventListener("click", async () => {
+    const name = input.value.trim();
+    if (!name) {
+      status.textContent = "enter a name";
+      return;
+    }
+    save.disabled = true;
+    status.textContent = "saving…";
+    try {
+      const r = await fetch(
+        `/api/meetings/${encodeURIComponent(rid)}/speakers/${encodeURIComponent(sp.label)}/name`,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name }) }
+      );
+      if (!r.ok) throw new Error("save failed");
+      status.textContent = "saved ✓";
+      setTimeout(() => loadDetail(rid, document.querySelector(".row.active")), 350);
+    } catch (e) {
+      status.textContent = "failed";
+      save.disabled = false;
+    }
+  });
+  actions.append(hear, audio, input, save, status);
+
+  row.append(head, actions);
+  return row;
 }
 
 function li(text) {
