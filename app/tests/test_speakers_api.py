@@ -156,3 +156,28 @@ def test_name_updates_labelmap_and_logs_proto(state):
     import json as _j
     last = [_j.loads(x) for x in (state / "speaker_log.jsonl").read_text().splitlines()][-1]
     assert last["old_display"] == "Guest 1" and isinstance(last["proto_id"], int) and last["scope"] == "this"
+
+
+def test_backfill_relabels_other_meetings(state):
+    # rec1 named in-request (scope this); rec2 has the same voice as Guest, back-filled
+    _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
+    _seed_meeting(state, "rec2"); _seed_notes(state, "rec2", "Guest 1")
+    import app.speakers_api as sp
+    c = _client(state)
+    # enroll SPEAKER_01's voice as Akash on rec1 (scope this so the request doesn't block on backfill)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    # now run backfill synchronously and assert rec2 got relabeled
+    from plaud_worker.voiceprints import VoiceprintStore  # noqa
+    res = sp._backfill("Akash Jain", state, enqueue_notion=False)
+    assert "rec2" in res["relabeled"]
+    m2 = c.get("/api/meetings/rec2").json()
+    assert any(t["speaker"] == "Akash Jain" for t in m2["transcript"])
+
+
+def test_backfill_enqueues_notion(state):
+    _seed_meeting(state, "rec1"); _seed_notes(state, "rec1", "Guest 1")
+    import app.speakers_api as sp
+    c = _client(state)
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Akash Jain", "scope": "this"})
+    sp._backfill("Akash Jain", state, enqueue_notion=True)
+    assert (state / "relabel_queue" / "rec1.json").exists()
