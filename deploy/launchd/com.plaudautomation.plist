@@ -8,15 +8,15 @@
   anything synced while away.
 
   Install:
-    cp deploy/launchd/com.example.plaudautomation.plist ~/Library/LaunchAgents/
-    launchctl load ~/Library/LaunchAgents/com.example.plaudautomation.plist
+    cp deploy/launchd/com.plaudautomation.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/com.plaudautomation.plist
   Tail logs:
     tail -f worker/state/automation.log
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.example.plaudautomation</string>
+    <string>com.plaudautomation</string>
 
     <key>ProgramArguments</key>
     <array>

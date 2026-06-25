@@ -8,8 +8,8 @@ from __future__ import annotations
 import plistlib
 from pathlib import Path
 
-WORKER_LABEL = "com.example.plaudautomation"
-WEB_LABEL = "com.example.plaudautomation.web"
+WORKER_LABEL = "com.plaudautomation"
+WEB_LABEL = "com.plaudautomation.web"
 
 
 def _path_env(brew_prefix: str) -> str:

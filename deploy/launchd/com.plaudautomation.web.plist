@@ -6,13 +6,13 @@
   http://127.0.0.1:8787 up so the bookmarked dashboard survives terminal close.
   The wizard generates this with real paths (app/install/launchd.py); this file
   is the documented fallback template — replace {repo} and load with:
-    cp deploy/launchd/com.example.plaudautomation.web.plist ~/Library/LaunchAgents/
-    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.plaudautomation.web.plist
+    cp deploy/launchd/com.plaudautomation.web.plist ~/Library/LaunchAgents/
+    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.plaudautomation.web.plist
 -->
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>com.example.plaudautomation.web</string>
+    <string>com.plaudautomation.web</string>
     <key>ProgramArguments</key>
     <array>
         <string>{repo}/worker/.venv/bin/python</string>
