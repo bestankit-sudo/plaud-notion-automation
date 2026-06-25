@@ -22,6 +22,7 @@ async function loadModels() {
     document.getElementById("error").textContent = "Could not load models. Reload to retry.";
     return;
   }
+  models = [...models].sort((a, b) => a.provider.localeCompare(b.provider)); // group providers regardless of API order
   modelsEl.innerHTML = "";
   let lastProvider = null;
   for (const m of models) {

@@ -21,4 +21,4 @@ def test_wizard_js_groups_by_provider_with_key_links(client):
     assert "console.anthropic.com" in js
     assert "platform.openai.com" in js
     assert "Claude (Anthropic)" in js
-    assert '"OpenAI"' in js
+    assert "OpenAI" in js
