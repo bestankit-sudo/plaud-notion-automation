@@ -63,3 +63,12 @@ def test_notion_happy_path(isolated_env, monkeypatch):
     assert s.notion_parent_page_id == "page-xyz"
     assert s.anthropic_api_key == "ak-test"
     assert s.summarizer_model == "claude-opus-4-8"
+
+
+def test_riffado_always_required(isolated_env, monkeypatch):
+    _write_appconfig(isolated_env, destination="local",
+                     summarizer_provider="openai", summarizer_model="gpt-5.5")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.delenv("RIFFADO_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="RIFFADO_API_KEY"):
+        Settings.load()
