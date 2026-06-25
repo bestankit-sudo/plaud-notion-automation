@@ -32,3 +32,8 @@ audio { width: 100%; margin: 8px 0 16px; }
 .test-status { font-size: 13px; }
 .test-status.ok { color: #2ea44f; }
 .test-status.bad { color: #c0392b; }
+.provider-section { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 4px; padding-top: 8px; border-top: 1px solid #eee; }
+.provider-name { font-weight: 600; }
+.help-link { color: #335; font-size: 13px; }
+.hint { display: block; color: #888; font-size: 12px; margin: 2px 0 6px; }
+.hint code { background: #f3f3f3; padding: 0 3px; border-radius: 3px; }

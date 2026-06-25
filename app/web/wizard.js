@@ -9,6 +9,11 @@ form.destination.forEach((r) =>
   })
 );
 
+const PROVIDER_INFO = {
+  anthropic: { label: "Claude (Anthropic)", keyUrl: "https://console.anthropic.com/settings/keys", keyHint: "Console → Settings → API Keys → Create Key." },
+  openai: { label: "OpenAI", keyUrl: "https://platform.openai.com/api-keys", keyHint: "Create a new secret key." },
+};
+
 async function loadModels() {
   let models;
   try {
@@ -18,7 +23,28 @@ async function loadModels() {
     return;
   }
   modelsEl.innerHTML = "";
+  let lastProvider = null;
   for (const m of models) {
+    if (m.provider !== lastProvider) {
+      lastProvider = m.provider;
+      const info = PROVIDER_INFO[m.provider] || { label: m.provider, keyUrl: "#", keyHint: "" };
+      const head = document.createElement("div");
+      head.className = "provider-section";
+      const h = document.createElement("span");
+      h.className = "provider-name";
+      h.textContent = info.label;
+      const a = document.createElement("a");
+      a.className = "help-link";
+      a.href = info.keyUrl;
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.textContent = "Get an API key ↗";
+      const hint = document.createElement("small");
+      hint.className = "hint";
+      hint.textContent = info.keyHint;
+      head.append(h, a, hint);
+      modelsEl.appendChild(head);
+    }
     const row = document.createElement("label");
     row.className = "model-row";
     const radio = document.createElement("input");
@@ -26,10 +52,7 @@ async function loadModels() {
     radio.name = "model";
     radio.value = m.model;
     radio.dataset.provider = m.provider;
-    if (m.default) {
-      radio.checked = true;
-      selectedModel = m;
-    }
+    if (m.default) { radio.checked = true; selectedModel = m; }
     radio.addEventListener("change", () => { selectedModel = m; });
     const name = document.createElement("span");
     name.className = "model-name";

@@ -17,6 +17,7 @@
         <div id="notion-fields" hidden>
           <label>Notion integration token <input type="password" name="NOTION_TOKEN" autocomplete="off" /></label>
           <label>Parent page id <input type="text" name="notion_parent_page_id" /></label>
+          <small class="hint">Create an <a class="help-link" href="https://www.notion.so/my-integrations" target="_blank" rel="noopener">integration ↗</a>, copy its token, and share your target page with it. The parent page id is the 32-char id in the page's URL.</small>
           <button type="button" class="test-btn" data-test="notion">Test token</button>
           <span class="test-status" data-status="notion"></span>
         </div>
@@ -35,10 +36,12 @@
       <fieldset>
         <legend>3 · Worker access</legend>
         <label>HuggingFace token (one-time, for speaker diarization) <input type="password" name="HF_TOKEN" autocomplete="off" /></label>
+        <small class="hint">Create a <a class="help-link" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">read token ↗</a>, then accept the terms at <a class="help-link" href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener">pyannote/speaker-diarization-3.1 ↗</a>.</small>
         <button type="button" class="test-btn" data-test="hf">Test token</button>
         <span class="test-status" data-status="hf"></span>
         <label>Riffado base URL <input type="text" name="RIFFADO_BASE_URL" value="http://127.0.0.1:3000" /></label>
         <label>Riffado API key <input type="password" name="RIFFADO_API_KEY" autocomplete="off" /></label>
+        <small class="hint">Riffado is self-hosted (it syncs from Plaud). The API key (<code>op_…</code>) is in the Riffado web UI under Settings; the base URL defaults to 127.0.0.1:3000.</small>
         <button type="button" class="test-btn" data-test="riffado">Test connection</button>
         <span class="test-status" data-status="riffado"></span>
         <label><input type="checkbox" name="speaker_naming_enabled" checked /> Enable speaker naming (name voices from snippets later)</label>
