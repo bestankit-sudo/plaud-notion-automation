@@ -22,6 +22,18 @@ app.include_router(setup_router)
 app.include_router(install_router)
 app.include_router(speakers_router)
 
+
+@app.middleware("http")
+async def _revalidate_assets(request, call_next):
+    """Force the browser to revalidate the HTML + static JS/CSS so an app update
+    (git pull) is never masked by a stale cached asset. StaticFiles already sends
+    ETag/Last-Modified, so unchanged files still return a fast 304."""
+    response = await call_next(request)
+    if request.url.path == "/" or request.url.path.startswith("/static"):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 WEB_DIR = Path(__file__).resolve().parent / "web"
 
 

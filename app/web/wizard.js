@@ -148,3 +148,36 @@ async function runTest(which) {
 document.querySelectorAll(".test-btn").forEach((b) =>
   b.addEventListener("click", () => runTest(b.dataset.test))
 );
+
+// Step 1 / Step 2 tabs (ARIA tablist: arrow-key nav, one panel visible at a time).
+function setupTabs() {
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  if (!tabs.length) return;
+  function select(tab) {
+    for (const t of tabs) {
+      const on = t === tab;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      const panel = document.getElementById(t.getAttribute("aria-controls"));
+      if (panel) panel.hidden = !on;
+    }
+  }
+  tabs.forEach((tab, i) => {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", (e) => {
+      let j = null;
+      if (e.key === "ArrowRight") j = (i + 1) % tabs.length;
+      else if (e.key === "ArrowLeft") j = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") j = 0;
+      else if (e.key === "End") j = tabs.length - 1;
+      if (j !== null) { e.preventDefault(); tabs[j].focus(); select(tabs[j]); }
+    });
+  });
+  const next = document.getElementById("to-configure");
+  if (next) next.addEventListener("click", () => {
+    const t = document.getElementById("tab-configure");
+    select(t); t.focus();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+}
+setupTabs();

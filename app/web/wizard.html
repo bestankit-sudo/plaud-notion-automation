@@ -9,14 +9,20 @@
 <body>
   <header><h1>plaudautomation — Setup</h1></header>
   <main class="wizard">
-    <section id="install">
-      <h2 class="phase">Step 1 · Set up your Mac <small class="hint">one-time — installs the local pipeline (skips anything already present)</small></h2>
+    <p class="wizard-intro">Two quick steps — set up your Mac, then tell the app where your notes go.</p>
+    <div class="tabs" role="tablist" aria-label="Setup steps">
+      <button class="tab" type="button" role="tab" id="tab-install" aria-controls="install" aria-selected="true">1 · Set up your Mac</button>
+      <button class="tab" type="button" role="tab" id="tab-configure" aria-controls="setup" aria-selected="false" tabindex="-1">2 · Configure</button>
+    </div>
+
+    <section id="install" role="tabpanel" aria-labelledby="tab-install">
+      <p class="panel-intro">One-time — installs the local pipeline on your Mac. Skips anything already present.</p>
       <div id="install-steps">Loading…</div>
-      <p class="hint">When the steps above are done, configure below ↓</p>
+      <div class="panel-nav"><button type="button" id="to-configure" class="step-btn">Next: Configure →</button></div>
     </section>
 
-    <form id="setup">
-      <h2 class="phase">Step 2 · Configure</h2>
+    <form id="setup" role="tabpanel" aria-labelledby="tab-configure" hidden>
+      <p class="panel-intro">Tell the app where your notes should go and which AI writes them.</p>
       <fieldset>
         <legend>Where should notes go?</legend>
         <label><input type="radio" name="destination" value="local" checked /> Local (on this Mac — nothing leaves the machine)</label>
