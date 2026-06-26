@@ -2,10 +2,40 @@
 // All dynamic text is set via textContent; help links come from the step registry.
 const stepsEl = document.getElementById("install-steps");
 
-const GUIDE_HINTS = {
-  brew: "Install Homebrew (the macOS package manager), then click Re-check.",
-  docker: "Install and start Docker Desktop (it runs the Riffado container), then Re-check.",
-  plaud_otp: "Log into Riffado in your browser, connect your Plaud account, then paste its API key in the Configure section below.",
+// Per-step "why it's needed" + "how" copy, shown on the right of each step.
+const STEP_INFO = {
+  brew: {
+    why: "The macOS package manager. ffmpeg and Python 3.12 install through it, so the app gets the exact versions it needs instead of you hunting for installers — it's the foundation everything else sits on.",
+    how: ["Open the guide and paste its one-line install command into Terminal.", "Come back and click Re-check."],
+  },
+  ffmpeg: {
+    why: "Reads and clips the Plaud audio. Transcription can't run without it, and it cuts the short per-speaker clips you play in the Speaker Key.",
+    how: ["Click Install — fetched automatically via Homebrew."],
+  },
+  py312: {
+    why: "The exact Python the worker and the on-device ML stack are built against. It must be 3.12 — newer 3.13 / 3.14 aren't supported by the ML libraries yet.",
+    how: ["Click Install — added automatically via Homebrew."],
+  },
+  ml: {
+    why: "What makes transcription and speaker recognition run on YOUR Mac: MLX Whisper (transcribes on the Apple GPU), pyannote (separates who-spoke-when), and the voiceprint embeddings. Because it's local, your audio and voiceprints never leave the machine — the whole point of the app.",
+    how: ["Click Install. It builds a dedicated environment and downloads a few GB of models on the first run (one-time)."],
+  },
+  docker: {
+    why: "Runs the self-hosted Riffado container — the piece that pulls your recordings off Plaud's cloud onto your Mac.",
+    how: ["Install Docker Desktop from the guide and start it.", "Click Re-check."],
+  },
+  riffado: {
+    why: "The local service that syncs recordings from your Plaud device so the worker can process them. Runs in Docker on 127.0.0.1.",
+    how: ["Click Generate secrets (creates its DB password + keys).", "Click Install to start the container."],
+  },
+  plaud_otp: {
+    why: "Links your Plaud account so Riffado can fetch your recordings. You paste Riffado's API key so the worker can talk to it.",
+    how: ["Open Riffado, log in, and connect your Plaud account.", "Copy its API key (op_…) into the Configure section below."],
+  },
+  launchd: {
+    why: "Two background agents that keep things running without you: one checks Riffado every 30 minutes and auto-processes new recordings; the other keeps this dashboard always-on, so the URL works even when you haven't started it by hand.",
+    how: ["Click Start background services — it registers both agents with macOS (launchd)."],
+  },
 };
 
 async function loadStatus() {
@@ -27,9 +57,50 @@ function badge(done) {
   return b;
 }
 
+function stepInfoPanel(s) {
+  const info = STEP_INFO[s.id] || { why: "", how: [] };
+  const panel = document.createElement("div");
+  panel.className = "step-info";
+
+  const whyLabel = document.createElement("div");
+  whyLabel.className = "info-label";
+  whyLabel.textContent = "Why it's needed";
+  const why = document.createElement("p");
+  why.className = "info-why";
+  why.textContent = info.why;
+  panel.append(whyLabel, why);
+
+  if (info.how && info.how.length) {
+    const howLabel = document.createElement("div");
+    howLabel.className = "info-label";
+    howLabel.textContent = "How";
+    const ol = document.createElement("ol");
+    ol.className = "info-how";
+    for (const stepText of info.how) {
+      const li = document.createElement("li");
+      li.textContent = stepText;
+      ol.appendChild(li);
+    }
+    panel.append(howLabel, ol);
+  }
+  if (s.guide_url) {
+    const a = document.createElement("a");
+    a.className = "help-link";
+    a.href = s.guide_url;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "Open guide ↗";
+    panel.appendChild(a);
+  }
+  return panel;
+}
+
 function renderStep(s, i) {
   const row = document.createElement("div");
   row.className = "install-step";
+
+  const main = document.createElement("div");
+  main.className = "step-main";
 
   const head = document.createElement("div");
   head.className = "step-head";
@@ -53,19 +124,6 @@ function renderStep(s, i) {
   log.hidden = true;
 
   if (s.kind === "guide") {
-    if (s.guide_url) {
-      const a = document.createElement("a");
-      a.className = "help-link";
-      a.href = s.guide_url;
-      a.target = "_blank";
-      a.rel = "noopener";
-      a.textContent = "Open guide ↗";
-      actions.appendChild(a);
-    }
-    const hint = document.createElement("small");
-    hint.className = "hint";
-    hint.textContent = GUIDE_HINTS[s.id] || "";
-    actions.appendChild(hint);
     actions.appendChild(button("Re-check", "step-btn", loadStatus));
   } else if (s.id === "riffado") {
     actions.appendChild(button("Generate secrets", "step-btn", () => genSecrets(detail)));
@@ -77,7 +135,8 @@ function renderStep(s, i) {
     actions.appendChild(runButton(s, log, detail, badgeEl));
   }
 
-  row.append(head, actions, log);
+  main.append(head, actions, log);
+  row.append(main, stepInfoPanel(s));
   return row;
 }
 

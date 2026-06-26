@@ -35,7 +35,8 @@ audio { width: 100%; margin: 8px 0 16px; }
 .spk-status { font-size: 13px; color: #2ea44f; }
 .spk-link { background: none; border: 0; color: #335; font-size: 12px; cursor: pointer; padding: 2px 4px; text-decoration: underline; }
 .spk-link:disabled { color: #aaa; cursor: default; text-decoration: none; }
-.wizard { display: block; padding: 24px 28px; max-width: 720px; }
+.wizard { display: block; padding: 24px 28px; max-width: 1040px; }
+.wizard #setup { max-width: 720px; }
 .wizard fieldset { border: 1px solid #e5e5e5; border-radius: 8px; margin: 0 0 18px; padding: 14px 16px; }
 .wizard legend { font-weight: 600; padding: 0 6px; }
 .wizard label { display: block; margin: 8px 0; }
@@ -59,7 +60,19 @@ audio { width: 100%; margin: 8px 0 16px; }
 .phase { font-size: 17px; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 2px solid #335; }
 .phase .hint { display: inline; font-weight: 400; margin-left: 6px; }
 #install { margin-bottom: 28px; }
-.install-step { border: 1px solid #e5e5e5; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px; }
+.install-step { border: 1px solid #e5e5e5; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 18px; align-items: start; }
+.step-main { min-width: 0; }
+.step-info { border-left: 1px solid #eee; padding-left: 16px; }
+.info-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #999; margin-top: 10px; }
+.info-label:first-child { margin-top: 0; }
+.info-why { margin: 3px 0 0; font-size: 13px; color: #444; line-height: 1.5; }
+.info-how { margin: 3px 0 0; padding-left: 18px; font-size: 13px; color: #444; line-height: 1.5; }
+.info-how li { margin: 2px 0; }
+.step-info .help-link { display: inline-block; margin-top: 8px; }
+@media (max-width: 760px) {
+  .install-step { grid-template-columns: 1fr; }
+  .step-info { border-left: 0; padding-left: 0; border-top: 1px solid #eee; padding-top: 10px; margin-top: 4px; }
+}
 .step-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .step-num { width: 22px; height: 22px; flex: none; display: grid; place-items: center; background: #eef; color: #335; border-radius: 50%; font-size: 12px; font-weight: 600; }
 .step-title { font-weight: 600; }
