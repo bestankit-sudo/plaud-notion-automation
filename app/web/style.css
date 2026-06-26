@@ -239,6 +239,7 @@ input[type=text]:focus-visible, input[type=password]:focus-visible, .spk-input:f
 .model-row:hover { background: var(--surface-hover); }
 .model-row:has(input:checked) { background: var(--accent-tint); border-color: var(--accent); }
 .model-cost { color: var(--ink-muted); font-size: 13px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cost-note { margin-top: 10px; }
 
 .error { color: var(--danger-ink); font-weight: 500; }
 .test-status { font-size: 13px; }

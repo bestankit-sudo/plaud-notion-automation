@@ -27,10 +27,11 @@ def test_status_unconfigured_then_configured(client, tmp_path):
 
 def test_models_endpoint_returns_costed_catalog(client):
     body = client.get("/api/setup/models").json()
-    assert body["token_profile"]["input_tokens"] == 8000
+    assert body["profiles"]["low"]["input_tokens"] == 5000
     models = {m["model"]: m for m in body["models"]}
     assert "claude-opus-4-8" in models
-    assert models["claude-opus-4-8"]["cost"]["per_100"] == 7.75
+    assert models["claude-opus-4-8"]["cost"]["per_100_low"] == 5.0
+    assert models["claude-opus-4-8"]["cost"]["per_100_high"] == 15.25
     # constraint: no Opus 4.7/4.6 offered
     assert "claude-opus-4-7" not in models and "claude-opus-4-6" not in models
 

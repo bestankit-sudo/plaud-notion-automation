@@ -60,7 +60,10 @@ async function loadModels() {
     name.textContent = `${m.label} — ${m.tier}`;
     const cost = document.createElement("span");
     cost.className = "model-cost";
-    cost.textContent = `~$${m.cost.per_100.toFixed(2)} / 100 mtgs`;
+    const usd = (n) => (n >= 1 ? `$${Math.round(n)}` : `$${n.toFixed(2)}`);
+    cost.textContent = `${usd(m.cost.per_100_low)}–${usd(m.cost.per_100_high)} / 100 meetings`;
+    cost.title = "Estimated cost for 100 meetings' summaries (transcription is free). " +
+      "Low = a short ~20-min English meeting; high = a long ~70-min or non-English one.";
     row.append(radio, name, cost);
     modelsEl.appendChild(row);
   }

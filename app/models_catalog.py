@@ -1,14 +1,20 @@
-"""Provider/model catalog + per-meeting cost estimate shown in the setup wizard.
+"""Provider/model catalog + per-100-meetings cost estimate shown in the setup wizard.
 
-Cost basis: a ~30-min meeting is approximated as 8000 input + 1500 output tokens
-(title/overview/sections/action-items is light output). Prices are $/1M tokens.
-Anthropic models are restricted to those with structured-output support
-(see the worker AnthropicSummarizer): opus-4-8 / sonnet-4-6 / haiku-4-5.
+The paid model ONLY writes the structured summary (title / overview / sections /
+action-items). Transcription is done locally and FREE by MLX Whisper, so this
+estimate is summary-only. Input ≈ the meeting transcript, output ≈ the summary;
+both scale with transcript length (meeting duration). Two profiles bracket the
+typical range — LOW ≈ a short (~20-min) English meeting; HIGH ≈ a long (~70-min),
+dense, or non-English meeting (non-Latin scripts tokenize to noticeably more).
+Speaker count barely changes it. Prices are $/1M tokens. Anthropic models are
+restricted to those with structured-output support (see the worker
+AnthropicSummarizer): opus-4-8 / sonnet-4-6 / haiku-4-5.
 """
 
 from __future__ import annotations
 
-TOKEN_PROFILE = {"input_tokens": 8000, "output_tokens": 1500}
+PROFILE_LOW = {"input_tokens": 5000, "output_tokens": 1000}    # ~20-min English meeting
+PROFILE_HIGH = {"input_tokens": 18000, "output_tokens": 2500}  # ~70-min / dense / non-English
 
 CATALOG: list[dict] = [
     {"provider": "anthropic", "model": "claude-opus-4-8", "label": "Claude Opus 4.8",
@@ -36,16 +42,25 @@ CATALOG: list[dict] = [
 ]
 
 
-def cost_for(in_per_1m: float, out_per_1m: float) -> dict:
+def _per_100(in_per_1m: float, out_per_1m: float, profile: dict) -> float:
     per_meeting = (
-        in_per_1m * TOKEN_PROFILE["input_tokens"] / 1_000_000
-        + out_per_1m * TOKEN_PROFILE["output_tokens"] / 1_000_000
+        in_per_1m * profile["input_tokens"] / 1_000_000
+        + out_per_1m * profile["output_tokens"] / 1_000_000
     )
-    return {"per_meeting": round(per_meeting, 4), "per_100": round(per_meeting * 100, 2)}
+    return round(per_meeting * 100, 2)
+
+
+def cost_for(in_per_1m: float, out_per_1m: float) -> dict:
+    """Estimated $ for 100 meetings' summaries (transcription is free/local).
+    Returns a low–high range across the LOW and HIGH meeting profiles."""
+    return {
+        "per_100_low": _per_100(in_per_1m, out_per_1m, PROFILE_LOW),
+        "per_100_high": _per_100(in_per_1m, out_per_1m, PROFILE_HIGH),
+    }
 
 
 def catalog_with_costs() -> dict:
     models = [
         {**m, "cost": cost_for(m["in_per_1m"], m["out_per_1m"])} for m in CATALOG
     ]
-    return {"token_profile": TOKEN_PROFILE, "models": models}
+    return {"profiles": {"low": PROFILE_LOW, "high": PROFILE_HIGH}, "models": models}
