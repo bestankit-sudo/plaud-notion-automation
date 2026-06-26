@@ -43,9 +43,8 @@ class Settings:
     riffado_base_url: str
     riffado_api_key: str
     notion_token: str | None
-    # Parent page the worker writes meeting child-pages under.
-    # Defaults to the scratch TEST page; switch to OTHER_MEETING_CENTRAL_PAGE_ID
-    # only once the rendered output is verified.
+    # Parent Notion page the worker writes meeting child-pages under (chosen in the
+    # setup wizard; overridable via NOTION_PARENT_PAGE_ID / NOTION_TEST_PARENT_PAGE_ID).
     notion_parent_page_id: str  # "" when destination != "notion" (only read for Notion)
     openai_api_key: str | None
     # HuggingFace token — used once to download the (gated) pyannote models;
