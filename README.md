@@ -282,4 +282,10 @@ Requires an Apple-Silicon Mac and Python 3.12. The web app is credential-free (i
 
 ---
 
+## 📜 License
+
+**MIT** — see [`LICENSE`](LICENSE). Note: Riffado (the self-hosted sync app this drives) is a separate **AGPL-3.0** project you run yourself; this repo only ships a hardened deployment config for it, not its code.
+
+---
+
 *Built local-first. Your recordings are yours.*

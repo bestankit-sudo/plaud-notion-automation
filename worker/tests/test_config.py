@@ -12,7 +12,7 @@ def isolated_env(monkeypatch, tmp_path):
     monkeypatch.setattr(config_mod, "SHARED_SECRETS", tmp_path / "nope-secrets.env")
     monkeypatch.setattr(config_mod, "WORKER_ENV", tmp_path / "nope.env")
     for var in [
-        "NOTION_TOKEN", "NOTION_TEST_PARENT_PAGE_ID", "OTHER_MEETING_CENTRAL_PAGE_ID",
+        "NOTION_TOKEN", "NOTION_TEST_PARENT_PAGE_ID", "NOTION_PARENT_PAGE_ID",
         "OPENAI_API_KEY_PERSONAL", "OPENAI_API_KEY", "ANTHROPIC_API_KEY",
     ]:
         monkeypatch.delenv(var, raising=False)
@@ -56,7 +56,7 @@ def test_notion_happy_path(isolated_env, monkeypatch):
     _write_appconfig(isolated_env, destination="notion",
                      summarizer_provider="anthropic", summarizer_model="claude-opus-4-8")
     monkeypatch.setenv("NOTION_TOKEN", "secret_tok")
-    monkeypatch.setenv("OTHER_MEETING_CENTRAL_PAGE_ID", "page-xyz")
+    monkeypatch.setenv("NOTION_PARENT_PAGE_ID", "page-xyz")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "ak-test")
     s = Settings.load()
     assert s.notion_token == "secret_tok"

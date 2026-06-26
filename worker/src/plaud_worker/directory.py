@@ -5,7 +5,6 @@ currently in the voiceprint library (so it always reflects renames).
 from __future__ import annotations
 
 import json
-import os
 from collections import defaultdict
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -67,8 +66,14 @@ def _blocks(settings: Settings, store: VoiceprintStore, recs: dict) -> list[dict
 
 
 def build_and_upsert(settings: Settings) -> str:
-    """Create or update the single Speaker Directory page; return its id."""
-    parent = os.environ["OTHER_MEETING_CENTRAL_PAGE_ID"]
+    """Create or update the single Speaker Directory page; return its id.
+    It lives under the same Notion parent as the meeting notes."""
+    parent = settings.notion_parent_page_id
+    if not parent:
+        raise RuntimeError(
+            "Speaker Directory needs a Notion parent page id — set it in the "
+            "setup wizard (Configure → Notion)."
+        )
     id_file = settings.state_dir / "directory_page.txt"
     store = VoiceprintStore(settings.state_dir / "voiceprints.db")
     with RiffadoClient(settings.riffado_base_url, settings.riffado_api_key) as r:

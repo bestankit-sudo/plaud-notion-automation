@@ -93,7 +93,7 @@ class Settings:
         notion_token = os.getenv("NOTION_TOKEN")
         parent = (
             os.getenv("NOTION_TEST_PARENT_PAGE_ID")
-            or os.getenv("OTHER_MEETING_CENTRAL_PAGE_ID")
+            or os.getenv("NOTION_PARENT_PAGE_ID")
             or app.notion_parent_page_id
             or ""
         )
@@ -104,8 +104,8 @@ class Settings:
                 )
             if not parent:
                 raise RuntimeError(
-                    "destination=notion requires NOTION_TEST_PARENT_PAGE_ID (scratch) "
-                    "or OTHER_MEETING_CENTRAL_PAGE_ID (production)."
+                    "destination=notion requires a Notion parent page id — set it in "
+                    "the setup wizard (Configure → Notion), or via NOTION_PARENT_PAGE_ID."
                 )
 
         openai_key = os.getenv("OPENAI_API_KEY_PERSONAL") or os.getenv("OPENAI_API_KEY")
