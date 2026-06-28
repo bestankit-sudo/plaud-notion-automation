@@ -42,6 +42,25 @@ CATALOG: list[dict] = [
 ]
 
 
+# Local transcription models (MLX Whisper). Both run free on the Mac — audio
+# never leaves the device — so the trade-off is speed vs. accuracy, not cost.
+# `value` is the HuggingFace MLX repo id passed straight to mlx_whisper; it must
+# match what the worker downloads. Keep `default` in sync with the worker's
+# transcribe.DEFAULT_MODEL.
+WHISPER_CATALOG: list[dict] = [
+    {"value": "mlx-community/whisper-large-v3-mlx", "label": "Whisper large-v3",
+     "tier": "most accurate", "default": True,
+     "note": "Best accuracy, especially for non-English speech. Slower; ~3 GB first download."},
+    {"value": "mlx-community/whisper-large-v3-turbo", "label": "Whisper large-v3 turbo",
+     "tier": "fastest",
+     "note": "~4–8× faster on Apple Silicon; ~1.5 GB first download. Slightly lower accuracy."},
+]
+
+
+def whisper_models() -> list[dict]:
+    return WHISPER_CATALOG
+
+
 def _per_100(in_per_1m: float, out_per_1m: float, profile: dict) -> float:
     per_meeting = (
         in_per_1m * profile["input_tokens"] / 1_000_000

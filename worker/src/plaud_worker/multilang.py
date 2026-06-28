@@ -16,8 +16,7 @@ import re
 from collections import Counter
 
 from .models import TranscriptTurn
-
-DEFAULT_MODEL = "mlx-community/whisper-large-v3-turbo"
+from .transcribe import DEFAULT_MODEL  # single source of truth for the Whisper model
 
 # scripts we expect; the output script is the most reliable language signal
 _CJK = ("一", "鿿")        # Chinese

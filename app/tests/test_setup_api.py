@@ -16,6 +16,7 @@ def test_status_unconfigured_then_configured(client, tmp_path):
     r = client.post("/api/setup/config", json={
         "destination": "local", "summarizer_provider": "anthropic",
         "summarizer_model": "claude-opus-4-8", "speaker_naming_enabled": True,
+        "whisper_model": "mlx-community/whisper-large-v3-turbo",
     })
     assert r.status_code == 200 and r.json()["ok"] is True
     st = client.get("/api/setup/status").json()
@@ -23,6 +24,16 @@ def test_status_unconfigured_then_configured(client, tmp_path):
     assert st["destination"] == "local"
     assert st["summarizer_provider"] == "anthropic"
     assert st["summarizer_model"] == "claude-opus-4-8"
+    assert st["whisper_model"] == "mlx-community/whisper-large-v3-turbo"
+
+
+def test_config_whisper_model_defaults_to_empty_when_omitted(client):
+    r = client.post("/api/setup/config", json={
+        "destination": "local", "summarizer_provider": "anthropic",
+        "summarizer_model": "claude-opus-4-8",
+    })
+    assert r.status_code == 200
+    assert client.get("/api/setup/status").json()["whisper_model"] == ""
 
 
 def test_models_endpoint_returns_costed_catalog(client):
@@ -34,6 +45,14 @@ def test_models_endpoint_returns_costed_catalog(client):
     assert models["claude-opus-4-8"]["cost"]["per_100_high"] == 15.25
     # constraint: no Opus 4.7/4.6 offered
     assert "claude-opus-4-7" not in models and "claude-opus-4-6" not in models
+
+
+def test_models_endpoint_includes_whisper_models(client):
+    body = client.get("/api/setup/models").json()
+    values = {m["value"] for m in body["whisper_models"]}
+    assert "mlx-community/whisper-large-v3-mlx" in values
+    assert "mlx-community/whisper-large-v3-turbo" in values
+    assert sum(1 for m in body["whisper_models"] if m.get("default")) == 1
 
 
 def test_secrets_written_to_env_file(client, tmp_path):

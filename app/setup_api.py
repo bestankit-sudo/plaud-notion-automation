@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app import conn_check, envfile, paths
-from app.models_catalog import catalog_with_costs
+from app.models_catalog import catalog_with_costs, whisper_models
 from plaud_worker.appconfig import AppConfig
 
 router = APIRouter(prefix="/api/setup")
@@ -29,18 +29,20 @@ def status() -> dict:
         "destination": cfg.destination,
         "summarizer_provider": cfg.summarizer_provider,
         "summarizer_model": cfg.summarizer_model,
+        "whisper_model": cfg.whisper_model,
     }
 
 
 @router.get("/models")
 def models() -> dict:
-    return catalog_with_costs()
+    return {**catalog_with_costs(), "whisper_models": whisper_models()}
 
 
 class ConfigIn(BaseModel):
     destination: str
     summarizer_provider: str
     summarizer_model: str
+    whisper_model: str = ""
     speaker_naming_enabled: bool = True
     notion_parent_page_id: str | None = None
 
@@ -52,6 +54,7 @@ def write_config(body: ConfigIn) -> dict:
         speaker_naming_enabled=body.speaker_naming_enabled,
         summarizer_provider=body.summarizer_provider,
         summarizer_model=body.summarizer_model,
+        whisper_model=body.whisper_model,
         notion_parent_page_id=body.notion_parent_page_id,
     ).save(paths.state_dir())
     return {"ok": True}

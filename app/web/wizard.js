@@ -1,7 +1,9 @@
 const form = document.getElementById("setup");
 const notionFields = document.getElementById("notion-fields");
 const modelsEl = document.getElementById("models");
+const whisperEl = document.getElementById("whisper-models");
 let selectedModel = null;
+let selectedWhisper = null;
 
 form.destination.forEach((r) =>
   r.addEventListener("change", () => {
@@ -14,14 +16,37 @@ const PROVIDER_INFO = {
   openai: { label: "OpenAI", keyUrl: "https://platform.openai.com/api-keys", keyHint: "Create a new secret key." },
 };
 
+function loadWhisperModels(whisperModels) {
+  whisperEl.innerHTML = "";
+  for (const m of whisperModels) {
+    const row = document.createElement("label");
+    row.className = "model-row";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "whisper";
+    radio.value = m.value;
+    if (m.default) { radio.checked = true; selectedWhisper = m; }
+    radio.addEventListener("change", () => { selectedWhisper = m; });
+    const name = document.createElement("span");
+    name.className = "model-name";
+    name.textContent = `${m.label} — ${m.tier}`;
+    const note = document.createElement("span");
+    note.className = "model-cost";
+    note.textContent = m.note;
+    row.append(radio, name, note);
+    whisperEl.appendChild(row);
+  }
+}
+
 async function loadModels() {
-  let models;
+  let models, whisper_models;
   try {
-    ({ models } = await (await fetch("/api/setup/models")).json());
+    ({ models, whisper_models } = await (await fetch("/api/setup/models")).json());
   } catch (e) {
     document.getElementById("error").textContent = "Could not load models. Reload to retry.";
     return;
   }
+  if (whisper_models) loadWhisperModels(whisper_models);
   models = [...models].sort((a, b) => a.provider.localeCompare(b.provider)); // group providers regardless of API order
   modelsEl.innerHTML = "";
   let lastProvider = null;
@@ -80,6 +105,7 @@ form.addEventListener("submit", async (e) => {
     destination,
     summarizer_provider: selectedModel.provider,
     summarizer_model: selectedModel.model,
+    whisper_model: selectedWhisper ? selectedWhisper.value : "",
     speaker_naming_enabled: form.speaker_naming_enabled.checked,
     notion_parent_page_id: destination === "notion" ? form.notion_parent_page_id.value : null,
   };

@@ -9,8 +9,8 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# Good speed/quality balance on Apple Silicon; ~1.5GB on first download.
-DEFAULT_MODEL = "mlx-community/whisper-large-v3-turbo"
+# Full large-v3: best accuracy, slower than turbo; ~3GB on first download.
+DEFAULT_MODEL = "mlx-community/whisper-large-v3-mlx"
 
 
 @dataclass

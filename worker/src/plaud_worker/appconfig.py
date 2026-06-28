@@ -17,6 +17,8 @@ class AppConfig:
     speaker_naming_enabled: bool = True
     summarizer_provider: str = "openai"    # "openai" | "anthropic"
     summarizer_model: str = "gpt-5.5"
+    # Local Whisper model (MLX repo id). "" = use the worker default (transcribe.DEFAULT_MODEL).
+    whisper_model: str = ""
     notion_parent_page_id: str | None = None
 
     @classmethod

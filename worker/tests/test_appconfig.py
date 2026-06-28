@@ -6,8 +6,14 @@ def test_load_missing_returns_defaults(tmp_path):
     assert cfg.destination == "notion"
     assert cfg.summarizer_provider == "openai"
     assert cfg.summarizer_model == "gpt-5.5"
+    assert cfg.whisper_model == ""  # "" = worker default (transcribe.DEFAULT_MODEL)
     assert cfg.speaker_naming_enabled is True
     assert cfg.notion_parent_page_id is None
+
+
+def test_whisper_model_roundtrips(tmp_path):
+    AppConfig(whisper_model="mlx-community/whisper-large-v3-turbo").save(tmp_path)
+    assert AppConfig.load(tmp_path).whisper_model == "mlx-community/whisper-large-v3-turbo"
 
 
 def test_save_then_load_roundtrips(tmp_path):

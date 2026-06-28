@@ -49,6 +49,12 @@
       </fieldset>
 
       <fieldset>
+        <legend>Which model transcribes the audio?</legend>
+        <small class="hint">Runs <strong>free on your Mac</strong> — audio never leaves the device. Pick speed or accuracy; the model downloads once on first use.</small>
+        <div id="whisper-models" class="models"></div>
+      </fieldset>
+
+      <fieldset>
         <legend>Worker access</legend>
         <label>HuggingFace token (one-time, for speaker diarization) <input type="password" name="HF_TOKEN" autocomplete="off" /></label>
         <small class="hint">Create a <a class="help-link" href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener">read token ↗</a>, then accept the terms at <a class="help-link" href="https://huggingface.co/pyannote/speaker-diarization-3.1" target="_blank" rel="noopener">pyannote/speaker-diarization-3.1 ↗</a>.</small>

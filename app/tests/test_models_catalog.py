@@ -27,3 +27,17 @@ def test_catalog_with_costs_attaches_cost():
     by_model = {m["model"]: m for m in out["models"]}
     assert by_model["claude-sonnet-4-6"]["cost"]["per_100_low"] == 3.0
     assert by_model["claude-sonnet-4-6"]["cost"]["per_100_high"] == 9.15
+
+
+def test_whisper_catalog_has_exactly_one_default_matching_worker():
+    from plaud_worker.transcribe import DEFAULT_MODEL
+
+    defaults = [m for m in mc.whisper_models() if m.get("default")]
+    assert len(defaults) == 1
+    # the wizard's pre-selected option must be what the worker downloads by default
+    assert defaults[0]["value"] == DEFAULT_MODEL
+
+
+def test_whisper_catalog_values_are_mlx_repos():
+    for m in mc.whisper_models():
+        assert m["value"].startswith("mlx-community/whisper-")

@@ -23,7 +23,7 @@ Clone it, run `./run`, follow a short setup wizard, and a recording you make on 
 | 🚀 **Setup** | `git clone` → `./run` → a browser **setup wizard** installs the pipeline and saves your choices |
 | 📤 **Notes go to** | **Notion** *or* a **local notes app** (your choice in the wizard) |
 | 🤖 **Summaries by** | **OpenAI** *or* **Claude** — your key, your model (cost shown up front) |
-| 🗣️ **Transcription** | **Local** Whisper (MLX `large-v3-turbo`) — **free**, audio never sent to transcribe |
+| 🗣️ **Transcription** | **Local** Whisper (MLX `large-v3`) — **free**, audio never sent to transcribe |
 | 👥 **Speaker names** | **Local** voiceprint library (cosine ≥ 0.75); name voices right in the app |
 | 🖥️ **The app** | A local web dashboard to browse notes, play audio, and name speakers |
 | ⏰ **Schedule** | Every **30 minutes**, plus on login / wake (a `launchd` agent) |
@@ -249,7 +249,7 @@ Sources: [openplaud/openplaud](https://github.com/openplaud/openplaud) · [openp
 <summary><b>🔐 Design decisions</b></summary>
 
 - **Sync layer:** self-hosted Riffado, driven headless via `POST /api/plaud/sync`.
-- **Transcription:** local Whisper on Apple Silicon (MLX `large-v3-turbo`); pyannote diarization.
+- **Transcription:** local Whisper on Apple Silicon (MLX `large-v3`); pyannote diarization.
 - **Identification:** voiceprint-only (no calendar), multi-prototype matching at cosine ≥ 0.75, precision-first.
 - **Language:** transcript in the original spoken language (per-block for Chinese-heavy meetings); summaries always English.
 - **Summaries:** OpenAI **or** Anthropic, chosen in the wizard; your key, your model. Anthropic is restricted to structured-output models (opus-4-8 / sonnet-4-6 / haiku-4-5).

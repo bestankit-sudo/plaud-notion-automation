@@ -30,6 +30,10 @@ def _labelled_transcript(audio_path: str, rid: str, diar, settings) -> list:
 
     from .models import TranscriptTurn
     from . import multilang
+    from .transcribe import DEFAULT_MODEL
+
+    # Configured Whisper model (setup wizard), falling back to the worker default.
+    whisper_model = settings.whisper_model or DEFAULT_MODEL
 
     ml_dir = settings.state_dir / "transcripts_ml"
     ml_cache = ml_dir / f"{rid}.json"
@@ -46,18 +50,22 @@ def _labelled_transcript(audio_path: str, rid: str, diar, settings) -> list:
         from mlx_whisper.audio import load_audio
 
         audio = load_audio(audio_path)
-        is_ml, secondary = multilang.detect(audio, blocks)
+        is_ml, secondary = multilang.detect(audio, blocks, model=whisper_model)
         flag_path.parent.mkdir(parents=True, exist_ok=True)
         flag_path.write_text(_json.dumps({"multilingual": is_ml, "secondary": secondary}))
 
     if not is_ml:
-        tr = transcribe_cached(audio_path, cache_path=settings.state_dir / "transcripts" / f"{rid}.json")
+        tr = transcribe_cached(
+            audio_path,
+            cache_path=settings.state_dir / "transcripts" / f"{rid}.json",
+            model=whisper_model,
+        )
         return label_segments(tr.segments, diar.turns)
 
     from mlx_whisper.audio import load_audio
 
     audio = load_audio(audio_path)
-    turns = multilang.transcribe_blocks(audio, blocks, secondary=secondary)
+    turns = multilang.transcribe_blocks(audio, blocks, secondary=secondary, model=whisper_model)
     ml_dir.mkdir(parents=True, exist_ok=True)
     ml_cache.write_text(_json.dumps([{"speaker": t.speaker, "text": t.text} for t in turns],
                                     ensure_ascii=False))

@@ -65,6 +65,8 @@ class Settings:
     destination: str = "notion"
     summarizer_provider: str = "openai"
     summarizer_model: str = "gpt-5.5"
+    # Local Whisper model (MLX repo id). "" = use the worker default (transcribe.DEFAULT_MODEL).
+    whisper_model: str = ""
     speaker_naming_enabled: bool = True
 
     def skip_recordings(self) -> set[str]:
@@ -132,5 +134,6 @@ class Settings:
             destination=app.destination,
             summarizer_provider=app.summarizer_provider,
             summarizer_model=app.summarizer_model,
+            whisper_model=app.whisper_model,
             speaker_naming_enabled=app.speaker_naming_enabled,
         )
