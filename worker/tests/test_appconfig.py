@@ -12,8 +12,8 @@ def test_load_missing_returns_defaults(tmp_path):
 
 
 def test_whisper_model_roundtrips(tmp_path):
-    AppConfig(whisper_model="mlx-community/whisper-large-v3-turbo").save(tmp_path)
-    assert AppConfig.load(tmp_path).whisper_model == "mlx-community/whisper-large-v3-turbo"
+    AppConfig(whisper_model="mlx-community/whisper-large-v3-mlx").save(tmp_path)
+    assert AppConfig.load(tmp_path).whisper_model == "mlx-community/whisper-large-v3-mlx"
 
 
 def test_save_then_load_roundtrips(tmp_path):

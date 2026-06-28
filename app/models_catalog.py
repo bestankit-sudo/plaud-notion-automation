@@ -50,10 +50,7 @@ CATALOG: list[dict] = [
 WHISPER_CATALOG: list[dict] = [
     {"value": "mlx-community/whisper-large-v3-mlx", "label": "Whisper large-v3",
      "tier": "most accurate", "default": True,
-     "note": "Best accuracy, especially for non-English speech. Slower; ~3 GB first download."},
-    {"value": "mlx-community/whisper-large-v3-turbo", "label": "Whisper large-v3 turbo",
-     "tier": "fastest",
-     "note": "~4–8× faster on Apple Silicon; ~1.5 GB first download. Slightly lower accuracy."},
+     "note": "Best accuracy, especially for non-English speech. Runs free on the Mac; ~3 GB first download."},
 ]
 
 

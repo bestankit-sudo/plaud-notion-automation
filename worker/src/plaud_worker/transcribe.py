@@ -9,7 +9,7 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-# Full large-v3: best accuracy, slower than turbo; ~3GB on first download.
+# Full large-v3 — best accuracy (especially non-English); ~3GB on first download.
 DEFAULT_MODEL = "mlx-community/whisper-large-v3-mlx"
 
 

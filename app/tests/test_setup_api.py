@@ -16,7 +16,7 @@ def test_status_unconfigured_then_configured(client, tmp_path):
     r = client.post("/api/setup/config", json={
         "destination": "local", "summarizer_provider": "anthropic",
         "summarizer_model": "claude-opus-4-8", "speaker_naming_enabled": True,
-        "whisper_model": "mlx-community/whisper-large-v3-turbo",
+        "whisper_model": "mlx-community/whisper-large-v3-mlx",
     })
     assert r.status_code == 200 and r.json()["ok"] is True
     st = client.get("/api/setup/status").json()
@@ -24,7 +24,7 @@ def test_status_unconfigured_then_configured(client, tmp_path):
     assert st["destination"] == "local"
     assert st["summarizer_provider"] == "anthropic"
     assert st["summarizer_model"] == "claude-opus-4-8"
-    assert st["whisper_model"] == "mlx-community/whisper-large-v3-turbo"
+    assert st["whisper_model"] == "mlx-community/whisper-large-v3-mlx"
 
 
 def test_config_whisper_model_defaults_to_empty_when_omitted(client):
@@ -51,7 +51,6 @@ def test_models_endpoint_includes_whisper_models(client):
     body = client.get("/api/setup/models").json()
     values = {m["value"] for m in body["whisper_models"]}
     assert "mlx-community/whisper-large-v3-mlx" in values
-    assert "mlx-community/whisper-large-v3-turbo" in values
     assert sum(1 for m in body["whisper_models"] if m.get("default")) == 1
 
 
