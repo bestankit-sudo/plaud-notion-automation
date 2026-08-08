@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Riffado watchdog.
+  Every 5 min (and at login) checks that riffado answers on 127.0.0.1:3000 and
+  restarts the containers if not — Docker Desktop restarts can leave them
+  exited despite `unless-stopped`. Silent while healthy.
+
+  Install:
+    cp deploy/launchd/net.bhangar.riffado-watchdog.plist ~/Library/LaunchAgents/
+    launchctl load ~/Library/LaunchAgents/net.bhangar.riffado-watchdog.plist
+  Tail logs:
+    tail -f ~/Library/Logs/riffado-watchdog.log
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>net.bhangar.riffado-watchdog</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/ankitbhangar/Projects/plaudautomation/deploy/riffado/watchdog.sh</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/ankitbhangar/Library/Logs/riffado-watchdog.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/ankitbhangar/Library/Logs/riffado-watchdog.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>
