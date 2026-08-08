@@ -102,3 +102,58 @@ def notify_failures(
         alerted_path.write_text(json.dumps(alerted))
     except Exception:  # noqa: BLE001 - best-effort
         pass
+
+
+_CRASH_KEY = "_run_crash"
+
+
+def notify_crash(
+    err: str,
+    *,
+    state_dir: Path,
+    token: str | None,
+    chat_id: str | None,
+) -> None:
+    """Alert that the run itself died, deduped on the error string.
+
+    reconcile()/drain crash-loop every 30 min while the cause persists (e.g.
+    Riffado container down -> httpx.ConnectError), so this pings once per
+    distinct error, not 48 times a day. A later successful run calls
+    clear_crash() so the next outage re-alerts.
+    """
+    alerted_path = state_dir / "telegram_alerted.json"
+    try:
+        alerted: dict[str, str] = (
+            json.loads(alerted_path.read_text()) if alerted_path.exists() else {}
+        )
+    except Exception:  # noqa: BLE001 - corrupt state shouldn't block alerts
+        alerted = {}
+    short = err[:180]
+    if alerted.get(_CRASH_KEY) == short:
+        return
+    label = os.getenv("PLAUD_LAUNCHD_LABEL", _DEFAULT_LABEL)
+    text = (
+        f"⚠️ Plaud automation: run CRASHED\n• {short}\n"
+        f"\nFix, then re-run:\nlaunchctl kickstart -k gui/$(id -u)/{label}"
+    )
+    if send_telegram(text, token=token, chat_id=chat_id):
+        alerted[_CRASH_KEY] = short
+        try:
+            alerted_path.write_text(json.dumps(alerted))
+        except Exception:  # noqa: BLE001 - best-effort
+            pass
+
+
+def clear_crash(*, state_dir: Path) -> None:
+    """Drop the crash dedup key after a successful run."""
+    alerted_path = state_dir / "telegram_alerted.json"
+    try:
+        alerted = json.loads(alerted_path.read_text()) if alerted_path.exists() else {}
+    except Exception:  # noqa: BLE001
+        return
+    if _CRASH_KEY in alerted:
+        alerted.pop(_CRASH_KEY)
+        try:
+            alerted_path.write_text(json.dumps(alerted))
+        except Exception:  # noqa: BLE001
+            pass

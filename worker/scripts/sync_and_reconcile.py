@@ -13,7 +13,7 @@ import sys
 import time
 
 from plaud_worker.config import Settings
-from plaud_worker.notify import notify_failures
+from plaud_worker.notify import clear_crash, notify_crash, notify_failures
 from plaud_worker.reconcile import reconcile
 from plaud_worker.relabel import drain_relabel_queue
 from plaud_worker.riffado_auth import make_session, trigger_sync
@@ -37,11 +37,21 @@ def main() -> None:
     else:
         _log("no RIFFADO_ADMIN_* creds set — skipping sync trigger, reconciling existing")
 
-    drained = drain_relabel_queue(s, on_event=_log)
-    if drained:
-        _log(f"relabel_queue: drained {drained} re-publish(es)")
+    try:
+        drained = drain_relabel_queue(s, on_event=_log)
+        if drained:
+            _log(f"relabel_queue: drained {drained} re-publish(es)")
 
-    report = reconcile(s, on_event=_log)
+        report = reconcile(s, on_event=_log)
+    except Exception as e:  # noqa: BLE001 - a dying run must alert, not vanish
+        _log(f"run crashed: {type(e).__name__}: {e}")
+        notify_crash(
+            f"{type(e).__name__}: {e}",
+            state_dir=s.state_dir,
+            token=s.telegram_bot_token,
+            chat_id=s.telegram_chat_id,
+        )
+        sys.exit(1)
     _log(f"reconcile done: {report.summary()}")
     # Ping Telegram on new failures (deduped); also clears recovered recordings.
     notify_failures(
@@ -50,6 +60,7 @@ def main() -> None:
         token=s.telegram_bot_token,
         chat_id=s.telegram_chat_id,
     )
+    clear_crash(state_dir=s.state_dir)
     if report.failed:
         sys.exit(1)
 
