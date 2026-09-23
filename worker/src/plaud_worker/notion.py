@@ -27,6 +27,11 @@ NOTION_VERSION = "2022-06-28"
 _MAX_RT = 2000          # chars per rich-text object
 _MAX_CHILDREN = 100     # blocks per append request
 
+# Blocks a rewrite must never archive — they are separate pages/databases someone
+# nested under the note, not generated content, and the API refuses to archive
+# them here anyway ("Updating a page via the blocks endpoint unsupported").
+_KEEP_BLOCK_TYPES = frozenset({"child_page", "child_database"})
+
 
 # --------------------------------------------------------------------------- #
 # rich-text + block builders
@@ -254,17 +259,43 @@ class NotionWriter:
         self._append_all(page_id, build_blocks(meeting, audio_file_upload_id=audio_id))
         return page_id
 
-    def _append_all(self, block_id: str, blocks: list[dict]) -> None:
+    def _append_all(
+        self, block_id: str, blocks: list[dict], *, after: str | None = None
+    ) -> None:
+        """Append `blocks` as children, optionally starting just after an existing
+        block. Each batch anchors on the last block the previous one created, so a
+        run longer than _MAX_CHILDREN still lands in order at the requested spot."""
         for batch in _batched(blocks, _MAX_CHILDREN):
-            self._patch(f"/blocks/{block_id}/children", {"children": batch})
+            body: dict[str, Any] = {"children": batch}
+            if after:
+                body["after"] = after
+            resp = self._patch(f"/blocks/{block_id}/children", body)
+            if after:
+                created = resp.get("results") or []
+                if created:
+                    after = created[-1]["id"]
 
     def replace_content(
         self, page_id: str, blocks: list[dict], *, title_text: str | None = None
     ) -> None:
-        """Archive a page's current blocks and rewrite them (optionally retitle).
-        Used for in-place updates (speaker-rename, directory refresh)."""
+        """Rewrite a page's body, then archive what it replaced (optionally retitle).
+        Used for in-place updates (speaker-rename, directory refresh).
+
+        Two things this must not do, both learned the hard way:
+
+        * Sub-pages and sub-databases someone nested under the note are kept, never
+          archived — they are separate pages, and Notion rejects archiving them
+          through the blocks endpoint anyway ("Updating a page via the blocks
+          endpoint unsupported"), which used to abort the rewrite mid-flight.
+        * The new body goes in BEFORE the old one comes out, anchored just above the
+          first kept block. That preserves the sub-pages' position at the bottom of
+          the note, and means a failure part-way leaves a page with duplicated
+          content rather than an empty one.
+        """
         cursor = None
-        child_ids: list[str] = []
+        stale: list[str] = []      # generated blocks this rewrite replaces
+        anchor: str | None = None  # last stale block above the first kept block
+        kept_seen = False
         while True:
             params = {"page_size": 100}
             if cursor:
@@ -272,18 +303,25 @@ class NotionWriter:
             resp = self._client.get(f"/blocks/{page_id}/children", params=params)
             resp.raise_for_status()
             data = resp.json()
-            child_ids += [b["id"] for b in data.get("results", [])]
+            for b in data.get("results", []):
+                if b.get("type") in _KEEP_BLOCK_TYPES:
+                    kept_seen = True
+                    continue
+                if not kept_seen:
+                    anchor = b["id"]
+                stale.append(b["id"])
             if not data.get("has_more"):
                 break
             cursor = data.get("next_cursor")
-        for cid in child_ids:
+
+        self._append_all(page_id, blocks, after=anchor if kept_seen else None)
+        for cid in stale:
             self._patch(f"/blocks/{cid}", {"archived": True})
         if title_text is not None:
             self._patch(
                 f"/pages/{page_id}",
                 {"properties": {"title": {"title": _rich(title_text)}}},
             )
-        self._append_all(page_id, blocks)
 
     def replace_page_content(self, page_id: str, meeting: Meeting) -> None:
         """Rewrite a meeting page from `meeting` (rename propagation)."""
