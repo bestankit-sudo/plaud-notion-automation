@@ -16,6 +16,7 @@ from plaud_worker.config import Settings
 from plaud_worker.notify import clear_crash, notify_crash, notify_failures
 from plaud_worker.reconcile import reconcile
 from plaud_worker.relabel import drain_relabel_queue
+from plaud_worker.riffado import READY_TIMEOUT_S, wait_until_ready
 from plaud_worker.riffado_auth import make_session, trigger_sync
 
 
@@ -25,6 +26,20 @@ def _log(msg: str) -> None:
 
 def main() -> None:
     s = Settings.load()
+
+    # Riffado goes down for a few minutes whenever Docker Desktop restarts. If
+    # launchd fires us inside that hole, wait it out rather than crashing on the
+    # first API call and paging for something the watchdog is already fixing.
+    if not wait_until_ready(s.riffado_base_url, on_event=_log):
+        _log("riffado unreachable — giving up this run")
+        notify_crash(
+            f"Riffado unreachable at {s.riffado_base_url} after "
+            f"{int(READY_TIMEOUT_S)}s — check Docker/riffado-app",
+            state_dir=s.state_dir,
+            token=s.telegram_bot_token,
+            chat_id=s.telegram_chat_id,
+        )
+        sys.exit(1)
 
     if s.riffado_admin_email and s.riffado_admin_password:
         try:

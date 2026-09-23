@@ -20,9 +20,32 @@ if curl -s -o /dev/null --max-time 5 http://127.0.0.1:3000/; then
     exit 0
 fi
 
+# ChatVault overnight field review: its launcher stops these containers on
+# purpose (Docker Desktop's ~6 GB is the model's headroom). Skip the restart
+# while either the wrapper (run_field_review.sh -- alive all night, including
+# the sleep between memory-retry attempts) or the python runner
+# (local_review_backlog.py) is running. pgrep returns 0 only on a live match;
+# any failure of the probe itself (no match, bad pattern, missing binary)
+# falls through to the normal restart below -- exactly the previous behavior.
+chatvault_run_alive() {
+    pgrep -f 'run_field_review\.sh|local_review_backlog\.py' >/dev/null 2>&1
+}
+if chatvault_run_alive; then
+    log "port 3000 down, but a ChatVault field review run is alive -- skipping restart this cycle"
+    exit 0
+fi
+
 log "port 3000 down — recovering"
 
 if ! docker info >/dev/null 2>&1; then
+    # With no daemon, `docker info` can sit for over a minute on a fresh boot
+    # (2026-08-27: 80 s) -- long enough for a review run to launch in between,
+    # after the check above already passed. Re-check before the one step that
+    # hands ~6 GB back to Docker for the rest of the night.
+    if chatvault_run_alive; then
+        log "docker daemon unreachable, but a ChatVault field review run started meanwhile -- not launching Docker Desktop"
+        exit 0
+    fi
     log "docker daemon unreachable — launching Docker Desktop"
     open -ga Docker
     for _ in $(seq 1 24); do
@@ -33,6 +56,12 @@ if ! docker info >/dev/null 2>&1; then
         log "docker daemon still unreachable after 120s — giving up until next check"
         exit 1
     fi
+fi
+
+# Same race, other side: the daemon wait above can take up to 120 s.
+if chatvault_run_alive; then
+    log "a ChatVault field review run started while waiting for the daemon -- leaving the containers stopped"
+    exit 0
 fi
 
 # `docker start` on a running container is a no-op, but it doesn't honor the
