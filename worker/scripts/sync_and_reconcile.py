@@ -18,10 +18,18 @@ from plaud_worker.reconcile import reconcile
 from plaud_worker.relabel import drain_relabel_queue
 from plaud_worker.riffado import READY_TIMEOUT_S, wait_until_ready
 from plaud_worker.riffado_auth import make_session, trigger_sync
+from plaud_worker.runlock import AlreadyRunning, run_lock
 
 
 def _log(msg: str) -> None:
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {msg}", flush=True)
+
+
+def _drain_and_reconcile(s: Settings):
+    drained = drain_relabel_queue(s, on_event=_log)
+    if drained:
+        _log(f"relabel_queue: drained {drained} re-publish(es)")
+    return reconcile(s, on_event=_log)
 
 
 def main() -> None:
@@ -52,12 +60,15 @@ def main() -> None:
     else:
         _log("no RIFFADO_ADMIN_* creds set — skipping sync trigger, reconciling existing")
 
+    # A manual run that outlives our 30-minute StartInterval must not get a
+    # second pipeline started on top of it — that just halves GPU throughput on
+    # the same recording. Bail out quietly; the holder is already doing the work.
     try:
-        drained = drain_relabel_queue(s, on_event=_log)
-        if drained:
-            _log(f"relabel_queue: drained {drained} re-publish(es)")
-
-        report = reconcile(s, on_event=_log)
+        with run_lock(s.state_dir):
+            report = _drain_and_reconcile(s)
+    except AlreadyRunning as e:
+        _log(f"{e} — skipping this run")
+        return
     except Exception as e:  # noqa: BLE001 - a dying run must alert, not vanish
         _log(f"run crashed: {type(e).__name__}: {e}")
         notify_crash(
@@ -67,6 +78,7 @@ def main() -> None:
             chat_id=s.telegram_chat_id,
         )
         sys.exit(1)
+
     _log(f"reconcile done: {report.summary()}")
     # Ping Telegram on new failures (deduped); also clears recovered recordings.
     notify_failures(
