@@ -211,3 +211,43 @@ def test_global_rename_merges(state):
     assert c.post("/api/speakers/rename", json={"old": "Speaker A", "new": "Rajeev"}).status_code == 200
     assert "Rajeev" in [x["name"] for x in c.get("/api/speakers").json()["speakers"]]
     assert "Speaker A" not in [x["name"] for x in c.get("/api/speakers").json()["speakers"]]
+
+
+def _seed_meeting_json(state, rid, transcript_speaker):
+    """The real destination=notion shape: no notes.db row, meeting in meetings/{rid}.json."""
+    from plaud_worker.models import Meeting, TranscriptTurn, Attendee
+    d = state / "meetings"
+    d.mkdir(parents=True, exist_ok=True)
+    m = Meeting(recording_id=rid, title="T",
+                recorded_at=datetime(2026, 6, 2, tzinfo=timezone.utc),
+                attendees=[Attendee(transcript_speaker)],
+                transcript=[TranscriptTurn(transcript_speaker, "hello")])
+    (d / f"{rid}.json").write_text(json.dumps(m.to_dict()))
+    return d / f"{rid}.json"
+
+
+def test_name_relabels_when_only_the_json_cache_exists(state):
+    """Regression: on a notion install notes.db is empty, so the rename was
+    accepted, the voice enrolled — and the meeting never actually changed."""
+    _seed_meeting(state, "rec1")
+    mj = _seed_meeting_json(state, "rec1", "Guest 1")
+    c = _client(state)
+
+    r = c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Rajeev"})
+    assert r.status_code == 200 and r.json()["enrolled"] is True
+
+    cached = json.loads(mj.read_text())
+    assert [t["speaker"] for t in cached["transcript"]] == ["Rajeev"]
+    assert [a["name"] for a in cached["attendees"]] == ["Rajeev"]
+
+
+def test_name_queues_notion_republish_for_a_json_only_meeting(state):
+    _seed_meeting(state, "rec1")
+    _seed_meeting_json(state, "rec1", "Guest 1")
+    (state / "config.json").write_text(json.dumps({"destination": "notion"}))
+    c = _client(state)
+
+    c.post("/api/meetings/rec1/speakers/SPEAKER_01/name", json={"name": "Rajeev"})
+
+    queued = list((state / "relabel_queue").glob("*.json"))
+    assert [json.loads(q.read_text())["recording_id"] for q in queued] == ["rec1"]

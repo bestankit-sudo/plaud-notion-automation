@@ -3,9 +3,9 @@
 When the credential-free VIEWER relabels a speaker on a meeting that has
 already been published to Notion, it drops a tiny JSON file in
 ``state/relabel_queue/{rid}.json``.  On its next scheduled run the WORKER
-(this module) drains that queue: it reloads the meeting from the local
-notes.db (already locally relabeled by the viewer), then re-publishes the
-updated meeting to its existing Notion page via ``NotionWriter``.
+(this module) drains that queue: it reloads the meeting from local storage
+(already relabeled by the viewer), then re-publishes the updated meeting to
+its existing Notion page via ``NotionWriter``.
 
 The viewer never touches the Notion token — all Notion I/O is worker-only.
 """
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from .ledger import Ledger
-from .notes_store import NotesStore
+from .meeting_store import load_meeting
 
 
 def re_render_for(
@@ -26,10 +26,11 @@ def re_render_for(
     writer: object,
     ledger: "Ledger",
 ) -> bool:
-    """Load meeting *rid* from notes.db and re-publish it to its Notion page.
+    """Load meeting *rid* from local storage and re-publish it to its Notion page.
 
-    Returns True if the page was re-published, False if either writer or the
-    ledger page-id are absent (idempotent — never creates a duplicate page).
+    Returns True if the page was re-published, False if the writer, the ledger
+    page-id, or the meeting itself are absent (idempotent — never creates a
+    duplicate page).
     """
     if writer is None:
         return False
@@ -38,12 +39,9 @@ def re_render_for(
     if row is None or not row.notion_page_id:
         return False
 
-    ns = NotesStore(settings.state_dir / "notes.db")
-    try:
-        meeting = ns.get(rid)
-    finally:
-        ns.close()
-
+    # notes.db is empty on a destination=notion install — the meeting lives in
+    # the JSON cache. load_meeting checks both (see meeting_store).
+    meeting = load_meeting(settings.state_dir, rid)
     if meeting is None:
         return False
 

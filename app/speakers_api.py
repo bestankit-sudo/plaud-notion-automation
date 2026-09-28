@@ -15,9 +15,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from fastapi.responses import FileResponse
 
-from app.paths import audio_dir, notes_db, state_dir
+from app.paths import audio_dir, state_dir
+from plaud_worker.meeting_store import load_meeting, save_meeting
 from plaud_worker.naming import load_diar, load_or_reconstruct, load_labelmap, write_labelmap
-from plaud_worker.notes_store import NotesStore
 from plaud_worker.voiceprints import VoiceprintStore
 
 _LABEL_RE = re.compile(r"^SPEAKER_\d+$")
@@ -255,32 +255,30 @@ def _append_log(rid: str, label: str, name: str, score: float, *, old_display: s
 
 
 def _apply_relabel(rid: str, old: str, name: str) -> None:
-    """Replace this meeting's display name `old` with `name` in notes.db +
-    meetings/{rid}.json. Local-only — no Notion. (Notion re-publish is Phase 2.)"""
+    """Replace this meeting's display name `old` with `name` in local storage.
+
+    Reads and writes via meeting_store, which covers both notes.db and
+    meetings/{rid}.json — on a destination=notion install notes.db is empty and
+    only the JSON cache exists, so consulting notes.db alone silently dropped
+    every rename. Local-only — the Notion re-publish is queued separately.
+    """
     if old == name:
         return
-    ns = NotesStore(notes_db())
-    try:
-        m = ns.get(rid)
-        if m is None:
-            return
-        for t in m.transcript:
-            if t.speaker == old:
-                t.speaker = name
-        seen, deduped = set(), []
-        for a in m.attendees:
-            a.name = name if a.name == old else a.name
-            if a.name not in seen:
-                seen.add(a.name)
-                deduped.append(a)
-        m.attendees = deduped
-        rel = os.path.basename(m.audio_path) if m.audio_path else f"{rid}.mp3"
-        ns.upsert(m, audio_rel_path=rel)
-    finally:
-        ns.close()
-    mj = state_dir() / "meetings" / f"{rid}.json"
-    if mj.exists():
-        mj.write_text(json.dumps(m.to_dict(), ensure_ascii=False))
+    m = load_meeting(state_dir(), rid)
+    if m is None:
+        return
+    for t in m.transcript:
+        if t.speaker == old:
+            t.speaker = name
+    seen, deduped = set(), []
+    for a in m.attendees:
+        a.name = name if a.name == old else a.name
+        if a.name not in seen:
+            seen.add(a.name)
+            deduped.append(a)
+    m.attendees = deduped
+    rel = os.path.basename(m.audio_path) if m.audio_path else f"{rid}.mp3"
+    save_meeting(state_dir(), m, audio_rel_path=rel)
 
 
 @router.post("/meetings/{rid}/speakers/{label}/name")
@@ -327,6 +325,12 @@ def name_speaker(rid: str, label: str, body: _NameBody) -> dict:
         write_labelmap(rid, state_dir(), lm)
         _append_log(rid, label, name, score, old_display=old_display,
                     proto_id=proto_id, scope=scope, action="skip" if already else "enroll")
+        # Queue the Notion re-publish for THIS meeting. Without this the rename
+        # only ever landed locally — _backfill enqueues, but it runs solely for
+        # scope="all", so renaming a speaker on the meeting in front of you left
+        # the published page showing the old name forever.
+        if old_display != name and _destination() == "notion":
+            _enqueue_notion(rid)
     if scope == "all":
         threading.Thread(
             target=lambda: _backfill(name, state_dir(), enqueue_notion=_destination() == "notion"),
